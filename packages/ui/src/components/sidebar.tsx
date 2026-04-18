@@ -23,6 +23,11 @@ const nav = [
         href: "/dashboard/invoice-filling",
         icon: "solar:document-text-linear",
       },
+      {
+        label: "Agent Chat",
+        href: "/dashboard/chat",
+        icon: "solar:chat-dots-linear",
+      },
     ],
   },
   {
