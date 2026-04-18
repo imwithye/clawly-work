@@ -33,7 +33,11 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/chat/sessions");
-    if (res.ok) setSessions(await res.json());
+    if (!res.ok) return;
+    const next = await res.json();
+    setSessions((prev) =>
+      JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+    );
     setLoading(false);
   }, []);
 
@@ -66,7 +70,6 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-full">
-      {/* Session sidebar */}
       <div className="w-60 border-r border-border flex flex-col bg-sidebar shrink-0">
         <div className="p-3">
           <button
@@ -122,7 +125,6 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Chat content */}
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );

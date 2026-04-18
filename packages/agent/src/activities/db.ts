@@ -6,5 +6,8 @@ export async function updateChatTitle(
   title: string,
 ): Promise<void> {
   const truncated = title.length > 50 ? `${title.slice(0, 50)}...` : title;
-  await db.update(chats).set({ title: truncated }).where(eq(chats.id, sessionId));
+  await db
+    .update(chats)
+    .set({ title: truncated })
+    .where(eq(chats.id, sessionId));
 }

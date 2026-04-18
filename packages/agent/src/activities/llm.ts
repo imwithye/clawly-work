@@ -3,15 +3,17 @@ import { generateText, tool } from "ai";
 import { z } from "zod";
 import type { ChatMessage } from "../workflows/agent-chat";
 
+let model: ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
+
 function getModel() {
-  const openrouter = createOpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY,
-    compatibility: "compatible",
-  });
-  return openrouter.chat(
-    process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4",
-  );
+  if (!model) {
+    model = createOpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      compatibility: "compatible",
+    }).chat(process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4");
+  }
+  return model;
 }
 
 export type LLMResponse =

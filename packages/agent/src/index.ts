@@ -6,6 +6,5 @@ export {
   cancelSignal,
   getHistoryQuery,
   getStatusQuery,
-  getTitleQuery,
   userMessageSignal,
 } from "./workflows/agent-chat";

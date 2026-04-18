@@ -11,22 +11,16 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const initialMessage = body?.message as string | undefined;
 
-  const [chat] = await db
-    .insert(chats)
-    .values({ title: "New conversation", workflowId: "pending" })
-    .returning();
-
-  const workflowId = chatWorkflowId(chat.id);
+  const [chat] = await db.insert(chats).values({}).returning();
 
   const client = await getTemporalClient();
-  await client.workflow.start(agentChatWorkflow, {
+  const handle = await client.workflow.start(agentChatWorkflow, {
     taskQueue: TASK_QUEUE,
-    workflowId,
+    workflowId: chatWorkflowId(chat.id),
     args: [chat.id],
   });
 
   if (initialMessage) {
-    const handle = client.workflow.getHandle(workflowId);
     await handle.signal(userMessageSignal, initialMessage);
   }
 

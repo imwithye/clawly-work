@@ -40,7 +40,6 @@ export default function ChatPage({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
           {messages.length === 0 && status === "idle" && (
@@ -71,7 +70,6 @@ export default function ChatPage({
         </div>
       </div>
 
-      {/* Input */}
       <div className="border-t border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex gap-2">
           <textarea

@@ -1,13 +1,9 @@
 "use client";
 
+import type { ChatMessage } from "agent";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type ChatMessage = {
-  role: "user" | "assistant" | "tool";
-  content: string;
-  ts: number;
-};
-
+export type { ChatMessage } from "agent";
 export type ChatStatus = "idle" | "thinking" | "tool_running";
 
 export function useChat(sessionId: string | null) {
@@ -79,7 +75,6 @@ export function useChat(sessionId: string | null) {
   const send = useCallback(
     async (message: string) => {
       if (!sessionId || !message.trim()) return;
-      setStatus("thinking");
 
       await fetch("/api/chat/send", {
         method: "POST",
