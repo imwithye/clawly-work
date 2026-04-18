@@ -18,5 +18,9 @@ export async function POST(req: Request) {
     }
   } catch {}
 
+  try {
+    await handle.delete();
+  } catch {}
+
   return Response.json({ ok: true });
 }

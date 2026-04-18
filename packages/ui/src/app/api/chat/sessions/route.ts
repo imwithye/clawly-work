@@ -12,7 +12,7 @@ export async function GET() {
 
   const workflows = client.workflow.list({
     query:
-      'WorkflowType = "agentChatWorkflow" AND ExecutionStatus = "Running" OR WorkflowType = "agentChatWorkflow" AND ExecutionStatus = "Completed"',
+      'WorkflowType = "agentChatWorkflow" AND ExecutionStatus != "Terminated"',
   });
 
   for await (const wf of workflows) {
