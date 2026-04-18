@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@iconify/react";
+import { Button } from "@/components/button";
 import { MatrixRain } from "./matrix-rain";
 
 export default function LoginPage() {
@@ -48,13 +49,10 @@ export default function LoginPage() {
             {/* Body */}
             <div className="px-5 py-5">
               <p className="text-sm text-muted mb-4">authenticate via</p>
-              <button
-                type="button"
-                className="w-full flex items-center justify-center gap-2 bg-foreground text-background py-2.5 text-sm hover:opacity-90 transition-opacity cursor-pointer"
-              >
+              <Button variant="solid" className="w-full py-2.5">
                 <Icon icon="mdi:github" width={18} />
                 [continue with github]
-              </button>
+              </Button>
             </div>
 
             {/* Footer */}

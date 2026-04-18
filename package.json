@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "pnpm --filter ui dev",
+    "dev:agent": "pnpm --filter agent dev",
     "check": "biome check --fix ."
   },
   "keywords": [],
