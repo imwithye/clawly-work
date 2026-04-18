@@ -1,30 +1,21 @@
 "use client";
 
 import { Icon } from "@iconify/react";
-import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { ConnectorCard } from "@/components/connector-card";
 import { PageShell } from "@/components/page-shell";
-import { getTypeConfig, getTypesWithCapability } from "@/lib/connector-types";
-import type { Connector } from "../connectors/page";
+import { getTypesWithCapability } from "@/lib/connector-types";
+import { useConnectors } from "@/lib/use-connectors";
 
-const supportedTypes = getTypesWithCapability("invoice-filling");
-const supportedTypeNames = new Set(supportedTypes.map((t) => t.type));
+const supportedTypeNames = new Set(
+  getTypesWithCapability("invoice-filling").map((t) => t.type),
+);
+
+const capabilityFilter = (c: { type: string }) =>
+  supportedTypeNames.has(c.type as never);
 
 export default function InvoiceFillingPage() {
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchConnectors = useCallback(async () => {
-    const res = await fetch("/api/connectors");
-    const data: Connector[] = await res.json();
-    setConnectors(data.filter((c) => supportedTypeNames.has(c.type)));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchConnectors();
-  }, [fetchConnectors]);
+  const { connectors, loading } = useConnectors(capabilityFilter);
 
   return (
     <PageShell
@@ -43,43 +34,6 @@ export default function InvoiceFillingPage() {
         </div>
       )}
     </PageShell>
-  );
-}
-
-function ConnectorCard({ connector }: { connector: Connector }) {
-  const config = getTypeConfig(connector.type);
-
-  return (
-    <div className="border border-border p-4 flex flex-col gap-3 hover:border-accent/30 transition-colors">
-      <div className="flex items-center gap-3">
-        {config && (
-          <Image src={config.icon} alt={config.label} width={56} height={56} />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground truncate">
-            {connector.name}
-          </p>
-          <p className="text-xs text-muted">
-            {config?.label ?? connector.type}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 text-success">
-          <Icon icon="solar:check-circle-linear" width={14} />
-          <span className="text-xs">connected</span>
-        </div>
-      </div>
-
-      <div className="border-t border-border pt-3 flex items-center justify-between">
-        <p className="text-xs text-muted">
-          {connector.credentials.accountId
-            ? `Account: ${connector.credentials.accountId}`
-            : "Configured"}
-        </p>
-        <p className="text-xs text-muted">
-          {new Date(connector.updatedAt).toLocaleDateString()}
-        </p>
-      </div>
-    </div>
   );
 }
 

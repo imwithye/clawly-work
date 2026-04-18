@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Button } from "@/components/button";
-import { connectorTypes } from "@/lib/connector-types";
-import type { Connector } from "./page";
+import { getTypeConfig } from "@/lib/connector-types";
+import type { Connector } from "@/lib/types";
 
 export function ConnectorTable({
   connectors,
@@ -66,7 +66,7 @@ export function ConnectorTable({
               </tr>
             ) : (
               connectors.map((c) => {
-                const config = connectorTypes.find((t) => t.type === c.type);
+                const config = getTypeConfig(c.type);
                 return (
                   <tr
                     key={c.id}

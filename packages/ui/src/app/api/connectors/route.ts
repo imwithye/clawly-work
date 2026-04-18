@@ -1,4 +1,4 @@
-import { connectors, db } from "@clawly-work/db";
+import { connectors, db, validateCredentials } from "@clawly-work/db";
 import { desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -12,6 +12,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
+  try {
+    validateCredentials(body.type, body.credentials);
+  } catch {
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 400 });
+  }
   const [row] = await db
     .insert(connectors)
     .values({

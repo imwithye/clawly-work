@@ -62,8 +62,10 @@ export const connectorTypes: ConnectorTypeConfig[] = [
   },
 ];
 
+const typeConfigMap = new Map(connectorTypes.map((t) => [t.type, t]));
+
 export function getTypeConfig(type: ConnectorType) {
-  return connectorTypes.find((t) => t.type === type);
+  return typeConfigMap.get(type);
 }
 
 export function getTypesWithCapability(capability: Capability) {

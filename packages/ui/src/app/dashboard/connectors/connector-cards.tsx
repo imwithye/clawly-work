@@ -1,8 +1,7 @@
 import { Icon } from "@iconify/react";
-import Image from "next/image";
 import { Button } from "@/components/button";
-import { getTypeConfig } from "@/lib/connector-types";
-import type { Connector } from "./page";
+import { ConnectorCard } from "@/components/connector-card";
+import type { Connector } from "@/lib/types";
 
 export function ConnectorCards({
   connectors,
@@ -45,68 +44,20 @@ export function ConnectorCards({
             <ConnectorCard
               key={c.id}
               connector={c}
-              onEdit={onEdit}
-              onDelete={onDelete}
+              actions={
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" onClick={() => onEdit(c)}>
+                    [edit]
+                  </Button>
+                  <Button variant="danger" onClick={() => onDelete(c)}>
+                    [delete]
+                  </Button>
+                </div>
+              }
             />
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function ConnectorCard({
-  connector,
-  onEdit,
-  onDelete,
-}: {
-  connector: Connector;
-  onEdit: (c: Connector) => void;
-  onDelete: (c: Connector) => void;
-}) {
-  const config = getTypeConfig(connector.type);
-
-  return (
-    <div className="border border-border p-4 flex flex-col gap-3 hover:border-accent/30 transition-colors">
-      <div className="flex items-center gap-3">
-        {config && (
-          <Image
-            src={config.icon}
-            alt={config.label}
-            width={44}
-            height={44}
-            className="shrink-0"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground truncate">
-            {connector.name}
-          </p>
-          <p className="text-xs text-muted">
-            {config?.label ?? connector.type}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 text-success">
-          <Icon icon="solar:check-circle-linear" width={14} />
-          <span className="text-xs">connected</span>
-        </div>
-      </div>
-
-      <div className="border-t border-border pt-3 flex items-center justify-between">
-        <p className="text-xs text-muted">
-          {connector.credentials.accountId
-            ? `Account: ${connector.credentials.accountId}`
-            : "Configured"}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" onClick={() => onEdit(connector)}>
-            [edit]
-          </Button>
-          <Button variant="danger" onClick={() => onDelete(connector)}>
-            [delete]
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/input";
 import { Modal } from "@/components/modal";
 import type { ConnectorType, ConnectorTypeConfig } from "@/lib/connector-types";
 import { connectorTypes } from "@/lib/connector-types";
-import type { Connector } from "./page";
+import type { Connector } from "@/lib/types";
 
 type Step = "select-type" | "form";
 
@@ -115,7 +115,6 @@ export function ConnectorModal({
           </Modal.Header>
           <Modal.Body>
             <div className="space-y-3">
-              {/* Type indicator */}
               {selectedType && (
                 <div className="flex items-center gap-2 pb-3 border-b border-border mb-3">
                   <Image

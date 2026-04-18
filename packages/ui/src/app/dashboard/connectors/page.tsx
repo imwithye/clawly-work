@@ -1,38 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { PageShell } from "@/components/page-shell";
 import type { ConnectorType } from "@/lib/connector-types";
+import type { Connector } from "@/lib/types";
+import { useConnectors } from "@/lib/use-connectors";
 import { ConnectorCards } from "./connector-cards";
 import { ConnectorModal } from "./connector-modal";
 import { DeleteModal } from "./delete-modal";
 
-export type Connector = {
-  id: string;
-  name: string;
-  type: ConnectorType;
-  credentials: Record<string, string>;
-  createdAt: string;
-  updatedAt: string;
-};
+export type { Connector };
 
 export default function ConnectorsPage() {
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { connectors, loading, refetch } = useConnectors();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Connector | null>(null);
   const [deleting, setDeleting] = useState<Connector | null>(null);
-
-  const fetchConnectors = useCallback(async () => {
-    const res = await fetch("/api/connectors");
-    const data = await res.json();
-    setConnectors(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchConnectors();
-  }, [fetchConnectors]);
 
   const handleCreate = () => {
     setEditing(null);
@@ -63,14 +46,14 @@ export default function ConnectorsPage() {
       });
     }
     setModalOpen(false);
-    fetchConnectors();
+    refetch();
   };
 
   const handleDelete = async () => {
     if (deleting) {
       await fetch(`/api/connectors/${deleting.id}`, { method: "DELETE" });
       setDeleting(null);
-      fetchConnectors();
+      refetch();
     }
   };
 
