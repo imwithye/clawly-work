@@ -1,5 +1,7 @@
+import Image from "next/image";
 import { Button } from "@/components/button";
 import type { Connector } from "./page";
+import { connectorTypes } from "./connector-types";
 
 export function ConnectorTable({
   connectors,
@@ -36,9 +38,6 @@ export function ConnectorTable({
                 type
               </th>
               <th className="px-4 py-2 text-sm text-muted text-left font-normal">
-                account
-              </th>
-              <th className="px-4 py-2 text-sm text-muted text-left font-normal">
                 updated
               </th>
               <th className="px-4 py-2 text-sm text-muted text-right font-normal" />
@@ -48,40 +47,50 @@ export function ConnectorTable({
             {connectors.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}
                   className="px-4 py-8 text-sm text-muted text-center"
                 >
                   No connectors configured.
                 </td>
               </tr>
             ) : (
-              connectors.map((c) => (
-                <tr
-                  key={c.id}
-                  className="border-b border-border/50 hover:bg-default/40 transition-colors"
-                >
-                  <td className="px-4 py-2.5 text-sm whitespace-nowrap">
-                    {c.name}
-                  </td>
-                  <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
-                    {c.type}
-                  </td>
-                  <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
-                    {c.accountId}
-                  </td>
-                  <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
-                    {c.updatedAt}
-                  </td>
-                  <td className="px-4 py-2.5 text-sm whitespace-nowrap text-right">
-                    <Button variant="ghost" onClick={() => onEdit(c)}>
-                      [edit]
-                    </Button>
-                    <Button variant="danger" onClick={() => onDelete(c)}>
-                      [delete]
-                    </Button>
-                  </td>
-                </tr>
-              ))
+              connectors.map((c) => {
+                const config = connectorTypes.find((t) => t.type === c.type);
+                return (
+                  <tr
+                    key={c.id}
+                    className="border-b border-border/50 hover:bg-default/40 transition-colors"
+                  >
+                    <td className="px-4 py-2.5 text-sm whitespace-nowrap">
+                      {c.name}
+                    </td>
+                    <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
+                      <span className="inline-flex items-center gap-1.5">
+                        {config && (
+                          <Image
+                            src={config.icon}
+                            alt={config.label}
+                            width={14}
+                            height={14}
+                          />
+                        )}
+                        {config?.label ?? c.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
+                      {c.updatedAt}
+                    </td>
+                    <td className="px-4 py-2.5 text-sm whitespace-nowrap text-right">
+                      <Button variant="ghost" onClick={() => onEdit(c)}>
+                        [edit]
+                      </Button>
+                      <Button variant="danger" onClick={() => onDelete(c)}>
+                        [delete]
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

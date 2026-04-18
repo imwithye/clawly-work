@@ -6,16 +6,13 @@ import { ConnectorModal } from "./connector-modal";
 import { ConnectorTable } from "./connector-table";
 import { DeleteModal } from "./delete-modal";
 
+export type ConnectorType = "netsuite";
+
 export type Connector = {
   id: string;
   name: string;
-  type: "netsuite";
-  accountId: string;
-  consumerKey: string;
-  consumerSecret: string;
-  tokenId: string;
-  tokenSecret: string;
-  baseUrl: string | null;
+  type: ConnectorType;
+  credentials: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 };
@@ -25,12 +22,13 @@ const mockData: Connector[] = [
     id: "1",
     name: "Production NetSuite",
     type: "netsuite",
-    accountId: "1234567",
-    consumerKey: "abc•••••••",
-    consumerSecret: "def•••••••",
-    tokenId: "ghi•••••••",
-    tokenSecret: "jkl•••••••",
-    baseUrl: null,
+    credentials: {
+      accountId: "1234567",
+      consumerKey: "abc•••••••",
+      consumerSecret: "def•••••••",
+      tokenId: "ghi•••••••",
+      tokenSecret: "jkl•••••••",
+    },
     createdAt: "4/17/2026, 2:32:22 AM",
     updatedAt: "4/17/2026, 7:27:45 PM",
   },
@@ -52,9 +50,11 @@ export default function ConnectorsPage() {
     setModalOpen(true);
   };
 
-  const handleSave = (
-    data: Omit<Connector, "id" | "createdAt" | "updatedAt">,
-  ) => {
+  const handleSave = (data: {
+    name: string;
+    type: ConnectorType;
+    credentials: Record<string, string>;
+  }) => {
     if (editing) {
       setConnectors((prev) =>
         prev.map((c) =>
