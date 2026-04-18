@@ -20,7 +20,7 @@ export function Header() {
       </button>
 
       <div className="flex items-center gap-3">
-        <span className="text-xs text-muted">user@clawly.dev</span>
+        <span className="text-xs text-muted">user@clawly-work.dev</span>
         <button
           type="button"
           className="text-xs text-danger hover:text-danger/80 transition-colors cursor-pointer"

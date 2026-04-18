@@ -4,7 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Clawly",
+  title: "Clawly Work",
   description: "Create agents for your work",
 };
 

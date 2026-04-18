@@ -11,7 +11,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 relative bg-black overflow-hidden">
         <MatrixRain />
         <div className="absolute bottom-8 left-8 z-10 text-sm">
-          <p className="text-green-400">$ clawly --status</p>
+          <p className="text-green-400">$ clawly-work --status</p>
           <p className="text-green-200/70 mt-1">agents: ready</p>
           <p className="text-green-200/70">tasks: automated</p>
           <p className="text-green-200/70">access: authenticated_only</p>
@@ -37,7 +37,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="text-sm">
-                  <span className="text-foreground font-medium">Clawly</span>
+                  <span className="text-foreground font-medium">Clawly Work</span>
                   <span className="text-muted"> | Cross-entropy AI</span>
                 </p>
                 <p className="text-[10px] text-muted uppercase tracking-wider">

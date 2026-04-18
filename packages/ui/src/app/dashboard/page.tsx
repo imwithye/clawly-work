@@ -5,7 +5,7 @@ export default function DashboardPage() {
   return (
     <PageShell
       title="Dashboard"
-      description="Overview of your Clawly instance."
+      description="Overview of your Clawly Work instance."
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard

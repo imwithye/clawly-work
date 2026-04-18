@@ -44,7 +44,7 @@ export function Sidebar() {
     <aside className="w-56 h-full bg-sidebar border-r border-border flex flex-col">
       {/* Brand */}
       <div className="px-4 py-4">
-        <p className="text-sm text-accent font-medium">Clawly</p>
+        <p className="text-sm text-accent font-medium">Clawly Work</p>
         <p className="text-[10px] text-muted">Cross-entropy AI</p>
       </div>
 
