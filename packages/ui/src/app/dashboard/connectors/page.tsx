@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/page-shell";
 import type { ConnectorType } from "@/lib/connector-types";
+import { ConnectorCards } from "./connector-cards";
 import { ConnectorModal } from "./connector-modal";
-import { ConnectorTable } from "./connector-table";
 import { DeleteModal } from "./delete-modal";
 
 export type Connector = {
@@ -79,7 +79,7 @@ export default function ConnectorsPage() {
       title="Connectors"
       description="Manage external service connections."
     >
-      <ConnectorTable
+      <ConnectorCards
         connectors={connectors}
         loading={loading}
         onCreate={handleCreate}
