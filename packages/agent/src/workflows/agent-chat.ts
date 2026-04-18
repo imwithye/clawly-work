@@ -15,7 +15,9 @@ const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
   retry: { maximumAttempts: 3 },
 });
 
-const { updateChatTitle } = proxyActivities<typeof dbActivities>({
+const { updateChatTitle, saveMessage, loadHistory } = proxyActivities<
+  typeof dbActivities
+>({
   startToCloseTimeout: "10 seconds",
   retry: { maximumAttempts: 2 },
 });
@@ -34,15 +36,14 @@ export const getStatusQuery = defineQuery<"idle" | "thinking" | "tool_running">(
   "getStatus",
 );
 
-export async function agentChatWorkflow(
-  sessionId: string,
-  existingHistory: ChatMessage[] = [],
-): Promise<void> {
-  const history: ChatMessage[] = [...existingHistory];
+export async function agentChatWorkflow(sessionId: string): Promise<void> {
+  const history: ChatMessage[] = (await loadHistory(
+    sessionId,
+  )) as ChatMessage[];
   const pendingMessages: string[] = [];
   let status: "idle" | "thinking" | "tool_running" = "idle";
   let cancelled = false;
-  let titleSet = existingHistory.some((m) => m.role === "user");
+  let titleSet = history.some((m) => m.role === "user");
 
   setHandler(userMessageSignal, (msg) => {
     pendingMessages.push(msg);
@@ -59,6 +60,7 @@ export async function agentChatWorkflow(
 
     const userMsg = pendingMessages.shift() ?? "";
     history.push({ role: "user", content: userMsg, ts: Date.now() });
+    await saveMessage(sessionId, "user", userMsg);
 
     if (!titleSet) {
       await updateChatTitle(sessionId, userMsg);
@@ -76,28 +78,27 @@ export async function agentChatWorkflow(
           content: response.content,
           ts: Date.now(),
         });
+        await saveMessage(sessionId, "assistant", response.content);
         break;
       }
 
       if (response.type === "tool_call") {
         status = "tool_running";
         const result = await executeTool(response.tool, response.args);
-        history.push({
-          role: "tool",
-          content: JSON.stringify({
-            tool: response.tool,
-            toolCallId: response.toolCallId,
-            args: response.args,
-            result,
-          }),
-          ts: Date.now(),
+        const toolContent = JSON.stringify({
+          tool: response.tool,
+          toolCallId: response.toolCallId,
+          args: response.args,
+          result,
         });
+        history.push({ role: "tool", content: toolContent, ts: Date.now() });
+        await saveMessage(sessionId, "tool", toolContent);
       }
     }
     status = "idle";
 
     if (workflowInfo().historyLength > 10_000) {
-      await continueAsNew<typeof agentChatWorkflow>(sessionId, history);
+      await continueAsNew<typeof agentChatWorkflow>(sessionId);
     }
   }
 }

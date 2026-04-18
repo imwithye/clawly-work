@@ -4,19 +4,20 @@ import type { ChatMessage } from "agent";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type { ChatMessage } from "agent";
-export type ChatStatus = "idle" | "thinking" | "tool_running";
+export type ChatStatus = "idle" | "sending";
 
 export function useChat(sessionId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("idle");
   const eventSourceRef = useRef<AbortController | null>(null);
+  const reconnectRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId) return;
 
     setMessages([]);
     setStatus("idle");
-    let totalReceived = 0;
+    let firstBatch = true;
 
     const controller = new AbortController();
     eventSourceRef.current = controller;
@@ -28,6 +29,7 @@ export function useChat(sessionId: string | null) {
         });
         if (!res.ok || !res.body) return;
 
+        reconnectRef.current = 0;
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -46,21 +48,26 @@ export function useChat(sessionId: string | null) {
             try {
               const data = JSON.parse(match[1]);
               if (data.messages?.length > 0) {
-                if (totalReceived === 0) {
+                if (firstBatch) {
                   setMessages(data.messages);
+                  firstBatch = false;
                 } else {
                   setMessages((prev) => [...prev, ...data.messages]);
                 }
-                totalReceived += data.messages.length;
-              }
-              if (data.status) {
-                setStatus(data.status);
+                setStatus("idle");
               }
             } catch {}
           }
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+
+      // Reconnect on disconnect
+      if (!controller.signal.aborted) {
+        const delay = Math.min(1000 * 2 ** reconnectRef.current, 10000);
+        reconnectRef.current++;
+        setTimeout(connect, delay);
       }
     };
 
@@ -75,12 +82,20 @@ export function useChat(sessionId: string | null) {
   const send = useCallback(
     async (message: string) => {
       if (!sessionId || !message.trim()) return;
+      setStatus("sending");
 
-      await fetch("/api/chat/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, message }),
-      });
+      try {
+        const res = await fetch("/api/chat/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, message }),
+        });
+        if (!res.ok) {
+          setStatus("idle");
+        }
+      } catch {
+        setStatus("idle");
+      }
     },
     [sessionId],
   );

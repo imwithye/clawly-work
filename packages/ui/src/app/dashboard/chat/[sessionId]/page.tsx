@@ -53,16 +53,14 @@ export default function ChatPage({
             <MessageBubble key={`${msg.ts}-${msg.role}-${i}`} message={msg} />
           ))}
 
-          {status !== "idle" && (
+          {status === "sending" && (
             <div className="flex items-center gap-2 text-sm text-muted py-2">
               <Icon
                 icon="solar:refresh-linear"
                 width={14}
                 className="animate-spin"
               />
-              <span>
-                {status === "thinking" ? "Thinking..." : "Running tool..."}
-              </span>
+              <span>Thinking...</span>
             </div>
           )}
 

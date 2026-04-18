@@ -1,9 +1,5 @@
-import {
-  chatWorkflowId,
-  getHistoryQuery,
-  getStatusQuery,
-  getTemporalClient,
-} from "agent";
+import { db, messages } from "@clawly-work/db";
+import { and, eq, gt } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const sessionId = new URL(req.url).searchParams.get("sessionId");
@@ -11,14 +7,10 @@ export async function GET(req: Request) {
     return new Response("Missing sessionId", { status: 400 });
   }
 
-  const client = await getTemporalClient();
-  const handle = client.workflow.getHandle(chatWorkflowId(sessionId));
-
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
-      let lastLen = 0;
-      let lastStatus = "idle";
+      let lastId = 0;
       let closed = false;
 
       const cleanup = () => {
@@ -34,20 +26,26 @@ export async function GET(req: Request) {
       const interval = setInterval(async () => {
         if (closed) return;
         try {
-          const [history, status] = await Promise.all([
-            handle.query(getHistoryQuery),
-            handle.query(getStatusQuery),
-          ]);
+          const rows = await db
+            .select()
+            .from(messages)
+            .where(
+              lastId > 0
+                ? and(eq(messages.chatId, sessionId), gt(messages.id, lastId))
+                : eq(messages.chatId, sessionId),
+            )
+            .orderBy(messages.id);
 
-          if (history.length > lastLen || status !== lastStatus) {
-            const newMsgs = history.slice(lastLen);
+          if (rows.length > 0) {
+            lastId = rows[rows.length - 1].id;
+            const msgs = rows.map((r) => ({
+              role: r.role,
+              content: r.content,
+              ts: r.ts.getTime(),
+            }));
             controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ messages: newMsgs, status })}\n\n`,
-              ),
+              encoder.encode(`data: ${JSON.stringify({ messages: msgs })}\n\n`),
             );
-            lastLen = history.length;
-            lastStatus = status;
           }
         } catch {
           cleanup();

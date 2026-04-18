@@ -6,6 +6,7 @@ import {
   TASK_QUEUE,
   userMessageSignal,
 } from "agent";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -13,15 +14,23 @@ export async function POST(req: Request) {
 
   const [chat] = await db.insert(chats).values({}).returning();
 
-  const client = await getTemporalClient();
-  const handle = await client.workflow.start(agentChatWorkflow, {
-    taskQueue: TASK_QUEUE,
-    workflowId: chatWorkflowId(chat.id),
-    args: [chat.id],
-  });
+  try {
+    const client = await getTemporalClient();
+    const handle = await client.workflow.start(agentChatWorkflow, {
+      taskQueue: TASK_QUEUE,
+      workflowId: chatWorkflowId(chat.id),
+      args: [chat.id],
+    });
 
-  if (initialMessage) {
-    await handle.signal(userMessageSignal, initialMessage);
+    if (initialMessage) {
+      await handle.signal(userMessageSignal, initialMessage);
+    }
+  } catch {
+    await db.delete(chats).where(eq(chats.id, chat.id));
+    return Response.json(
+      { error: "Failed to start workflow" },
+      { status: 500 },
+    );
   }
 
   return Response.json({ sessionId: chat.id });

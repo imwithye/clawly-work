@@ -39,6 +39,22 @@ services:
       POSTGRES_SEEDS: postgres
       TEMPORAL_NAMESPACE: clawly-work
 
+  temporal-init:
+    image: temporalio/admin-tools:latest
+    container_name: clawly-work-temporal-init
+    depends_on:
+      - temporal
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        until temporal operator namespace describe -n clawly-work --address temporal:7233 2>/dev/null; do
+          echo 'Waiting for Temporal...';
+          sleep 2;
+        done ||
+        temporal operator namespace create -n clawly-work --address temporal:7233 2>/dev/null;
+        echo 'Namespace clawly-work ready'
+      "
+
   temporal-ui:
     image: temporalio/ui:latest
     container_name: clawly-work-temporal-ui

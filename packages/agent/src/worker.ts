@@ -9,6 +9,10 @@ import * as dbActivities from "./activities/db";
 import * as llmActivities from "./activities/llm";
 import { TASK_QUEUE, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE } from "./constants";
 
+if (!process.env.OPENROUTER_API_KEY) {
+  throw new Error("OPENROUTER_API_KEY is required");
+}
+
 async function run() {
   const connection = await NativeConnection.connect({
     address: TEMPORAL_ADDRESS,
