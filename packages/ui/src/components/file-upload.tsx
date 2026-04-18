@@ -73,7 +73,7 @@ export function FileUpload({
         <div className="mt-2 space-y-1">
           {files.map((file, i) => (
             <div
-              key={`${file.name}-${file.key || i}`}
+              key={file.id}
               className="flex items-center justify-between px-3 py-2 border border-border text-sm"
             >
               <div className="flex items-center gap-2 min-w-0">

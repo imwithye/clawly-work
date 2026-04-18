@@ -14,8 +14,9 @@ export async function POST(request: Request) {
 
   const results = await Promise.all(
     files.map(async (file) => {
-      const ext = file.name.split(".").pop() || "";
-      const key = `${nanoid()}${ext ? `.${ext}` : ""}`;
+      const dotIndex = file.name.lastIndexOf(".");
+      const ext = dotIndex > 0 ? file.name.slice(dotIndex) : "";
+      const key = `${nanoid()}${ext}`;
 
       const url = await getSignedUrl(
         s3,
