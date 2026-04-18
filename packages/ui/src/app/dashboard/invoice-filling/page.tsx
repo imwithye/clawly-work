@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/button";
 import { ConnectorSelect } from "@/components/connector-select";
@@ -10,6 +11,7 @@ import { PageShell } from "@/components/page-shell";
 import { Textarea } from "@/components/textarea";
 import type { ConnectorType } from "@/lib/connector-types";
 import { getTypesWithCapability } from "@/lib/connector-types";
+import { startChatSession } from "@/lib/use-chat";
 import { useConnectors } from "@/lib/use-connectors";
 import { useFileUpload } from "@/lib/use-file-upload";
 
@@ -21,17 +23,34 @@ const capabilityFilter = (c: { type: string }) =>
   supportedTypes.has(c.type as ConnectorType);
 
 export default function InvoiceFillingPage() {
+  const router = useRouter();
   const { connectors, loading } = useConnectors(capabilityFilter);
   const { files, upload, remove } = useFileUpload();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [instructions, setInstructions] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const allUploaded =
     files.length > 0 && files.every((f) => f.status === "done");
-  const canSubmit = selectedId && allUploaded;
+  const canSubmit = selectedId && allUploaded && !submitting;
 
-  const handleSubmit = () => {
-    // TODO: submit to API
+  const selectedConnector = connectors.find((c) => c.id === selectedId);
+
+  const handleSubmit = async () => {
+    if (!canSubmit || !selectedConnector) return;
+    setSubmitting(true);
+
+    const fileList = files.map((f) => f.name).join(", ");
+    const message = [
+      `Fill invoices using connector "${selectedConnector.name}" (${selectedConnector.type}).`,
+      `Files: ${fileList}`,
+      instructions ? `Instructions: ${instructions}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const sessionId = await startChatSession(message);
+    router.push(`/dashboard/chat/${sessionId}`);
   };
 
   return (
@@ -96,7 +115,7 @@ export default function InvoiceFillingPage() {
               disabled={!canSubmit}
               onClick={handleSubmit}
             >
-              [start invoice filling]
+              {submitting ? "[starting...]" : "[start invoice filling]"}
             </Button>
           </div>
         </div>

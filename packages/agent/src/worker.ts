@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ path: "../../.env" });
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
@@ -14,7 +16,7 @@ async function run() {
     connection,
     namespace: TEMPORAL_NAMESPACE,
     taskQueue: TASK_QUEUE,
-    workflowsPath: path.resolve(__dirname, "./workflows/agent-chat"),
+    workflowsPath: path.resolve(__dirname, "./workflows/agent-chat.ts"),
     activities,
   });
 
