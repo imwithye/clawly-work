@@ -8,15 +8,16 @@ import { ConnectorSelect } from "@/components/connector-select";
 import { FileUpload } from "@/components/file-upload";
 import { PageShell } from "@/components/page-shell";
 import { Textarea } from "@/components/textarea";
+import type { ConnectorType } from "@/lib/connector-types";
 import { getTypesWithCapability } from "@/lib/connector-types";
 import { useConnectors } from "@/lib/use-connectors";
 
-const supportedTypeNames = new Set(
+const supportedTypes = new Set<ConnectorType>(
   getTypesWithCapability("invoice-filling").map((t) => t.type),
 );
 
 const capabilityFilter = (c: { type: string }) =>
-  supportedTypeNames.has(c.type as never);
+  supportedTypes.has(c.type as ConnectorType);
 
 export default function InvoiceFillingPage() {
   const { connectors, loading } = useConnectors(capabilityFilter);
@@ -30,23 +31,14 @@ export default function InvoiceFillingPage() {
     // TODO: submit to API
   };
 
-  if (loading) {
-    return (
-      <PageShell
-        title="Invoice Filling"
-        description="Automate invoice creation and submission."
-      >
+  return (
+    <PageShell
+      title="Invoice Filling"
+      description="Automate invoice creation and submission."
+    >
+      {loading ? (
         <p className="text-sm text-muted">Loading...</p>
-      </PageShell>
-    );
-  }
-
-  if (connectors.length === 0) {
-    return (
-      <PageShell
-        title="Invoice Filling"
-        description="Automate invoice creation and submission."
-      >
+      ) : connectors.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div className="border border-border p-8 flex flex-col items-center gap-3 text-center max-w-sm">
             <Icon
@@ -68,53 +60,46 @@ export default function InvoiceFillingPage() {
             </p>
           </div>
         </div>
-      </PageShell>
-    );
-  }
+      ) : (
+        <div className="flex justify-center">
+          <div className="w-full max-w-lg space-y-6">
+            <ConnectorSelect
+              label="Connector"
+              connectors={connectors}
+              value={selectedId}
+              onChange={setSelectedId}
+            />
 
-  return (
-    <PageShell
-      title="Invoice Filling"
-      description="Automate invoice creation and submission."
-    >
-      <div className="flex justify-center">
-        <div className="w-full max-w-lg space-y-6">
-          <ConnectorSelect
-            label="Connector"
-            connectors={connectors}
-            value={selectedId}
-            onChange={setSelectedId}
-          />
+            <FileUpload
+              label="Purchase Orders"
+              files={files}
+              onAdd={(f) => setFiles((prev) => [...prev, ...f])}
+              onRemove={(i) =>
+                setFiles((prev) => prev.filter((_, idx) => idx !== i))
+              }
+              accept=".pdf,.csv,.xlsx,.xls"
+            />
 
-          <FileUpload
-            label="Purchase Orders"
-            files={files}
-            onAdd={(f) => setFiles((prev) => [...prev, ...f])}
-            onRemove={(i) =>
-              setFiles((prev) => prev.filter((_, idx) => idx !== i))
-            }
-            accept=".pdf,.csv,.xlsx,.xls"
-          />
+            <Textarea
+              id="instructions"
+              label="Custom Instructions (optional)"
+              placeholder="e.g. Use vendor code V-1234 for all line items, set payment terms to Net 30..."
+              rows={4}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+            />
 
-          <Textarea
-            id="instructions"
-            label="Custom Instructions (optional)"
-            placeholder="e.g. Use vendor code V-1234 for all line items, set payment terms to Net 30..."
-            rows={4}
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-          />
-
-          <Button
-            variant="solid"
-            className="w-full py-2.5"
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-          >
-            [start invoice filling]
-          </Button>
+            <Button
+              variant="solid"
+              className="w-full py-2.5"
+              disabled={!canSubmit}
+              onClick={handleSubmit}
+            >
+              [start invoice filling]
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </PageShell>
   );
 }

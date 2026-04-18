@@ -3,6 +3,7 @@
 import { Icon } from "@iconify/react";
 import { useRef } from "react";
 import { Button } from "./button";
+import { FieldLabel } from "./field-label";
 
 export function FileUpload({
   files,
@@ -33,13 +34,11 @@ export function FileUpload({
     }
   };
 
+  const openPicker = () => inputRef.current?.click();
+
   return (
     <div>
-      {label && (
-        <p className="text-xs text-muted uppercase tracking-wider mb-1.5">
-          {label}
-        </p>
-      )}
+      {label && <FieldLabel>{label}</FieldLabel>}
 
       <input
         ref={inputRef}
@@ -51,10 +50,18 @@ export function FileUpload({
       />
 
       <div
-        onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onClick={openPicker}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openPicker();
+          }
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        className="border border-dashed border-border hover:border-accent/50 p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors"
+        className="border border-dashed border-border hover:border-accent/50 p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors focus:outline-none focus:border-accent"
       >
         <Icon icon="solar:upload-linear" width={24} className="text-muted" />
         <p className="text-sm text-muted">Drop files here or click to browse</p>
@@ -65,7 +72,7 @@ export function FileUpload({
         <div className="mt-2 space-y-1">
           {files.map((file, i) => (
             <div
-              key={`${file.name}-${file.lastModified}`}
+              key={`${file.name}-${file.size}-${file.lastModified}`}
               className="flex items-center justify-between px-3 py-2 border border-border text-sm"
             >
               <div className="flex items-center gap-2 min-w-0">

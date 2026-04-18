@@ -2,9 +2,11 @@
 
 import { Icon } from "@iconify/react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { getTypeConfig } from "@/lib/connector-types";
 import type { Connector } from "@/lib/types";
+import { useClickOutside } from "@/lib/use-click-outside";
+import { FieldLabel } from "./field-label";
 
 export function ConnectorSelect({
   connectors,
@@ -22,23 +24,15 @@ export function ConnectorSelect({
   const selected = connectors.find((c) => c.id === value);
   const selectedConfig = selected ? getTypeConfig(selected.type) : null;
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useClickOutside(
+    ref,
+    open,
+    useCallback(() => setOpen(false), []),
+  );
 
   return (
     <div ref={ref} className="relative">
-      {label && (
-        <p className="text-xs text-muted uppercase tracking-wider mb-1.5">
-          {label}
-        </p>
-      )}
+      {label && <FieldLabel>{label}</FieldLabel>}
 
       <button
         type="button"
