@@ -74,7 +74,7 @@ export function FileUpload({
           {files.map((file, i) => (
             <div
               key={file.id}
-              className="flex items-center justify-between px-3 py-2 border border-border text-sm"
+              className="flex items-center justify-between gap-3 px-3 py-2 border border-border text-sm"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <StatusIcon status={file.status} />
