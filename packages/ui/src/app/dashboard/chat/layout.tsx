@@ -61,6 +61,18 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     router.push(`/dashboard/chat/${sessionId}`);
   };
 
+  const handleDelete = async (sessionId: string) => {
+    await fetch("/api/chat/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    await refresh();
+    if (activeSessionId === sessionId) {
+      router.push("/dashboard/chat");
+    }
+  };
+
   return (
     <div className="flex h-full">
       {/* Session sidebar */}
@@ -88,10 +100,9 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
             sessions.map((s) => {
               const active = activeSessionId === s.sessionId;
               return (
-                <Link
+                <div
                   key={s.sessionId}
-                  href={`/dashboard/chat/${s.sessionId}`}
-                  className={`flex items-center gap-2 px-2.5 py-2 text-xs transition-colors ${
+                  className={`group flex items-center gap-2 px-2.5 py-2 text-xs transition-colors ${
                     active
                       ? "text-accent bg-default/50"
                       : "text-muted hover:text-foreground"
@@ -100,11 +111,23 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`}
                   />
-                  <span className="truncate flex-1">{s.title}</span>
-                  <span className="text-muted/60 shrink-0">
+                  <Link
+                    href={`/dashboard/chat/${s.sessionId}`}
+                    className="truncate flex-1"
+                  >
+                    {s.title}
+                  </Link>
+                  <span className="text-muted/60 shrink-0 group-hover:hidden">
                     {timeAgo(s.startTime)}
                   </span>
-                </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(s.sessionId)}
+                    className="hidden group-hover:block shrink-0 text-muted hover:text-danger cursor-pointer"
+                  >
+                    <Icon icon="solar:trash-bin-2-linear" width={13} />
+                  </button>
+                </div>
               );
             })
           )}
