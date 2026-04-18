@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/page-shell";
 import { ConnectorModal } from "./connector-modal";
 import { ConnectorTable } from "./connector-table";
@@ -17,28 +17,23 @@ export type Connector = {
   updatedAt: string;
 };
 
-const mockData: Connector[] = [
-  {
-    id: "1",
-    name: "Production NetSuite",
-    type: "netsuite",
-    credentials: {
-      accountId: "1234567",
-      consumerKey: "abc•••••••",
-      consumerSecret: "def•••••••",
-      tokenId: "ghi•••••••",
-      tokenSecret: "jkl•••••••",
-    },
-    createdAt: "4/17/2026, 2:32:22 AM",
-    updatedAt: "4/17/2026, 7:27:45 PM",
-  },
-];
-
 export default function ConnectorsPage() {
-  const [connectors, setConnectors] = useState<Connector[]>(mockData);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Connector | null>(null);
   const [deleting, setDeleting] = useState<Connector | null>(null);
+
+  const fetchConnectors = useCallback(async () => {
+    const res = await fetch("/api/connectors");
+    const data = await res.json();
+    setConnectors(data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchConnectors();
+  }, [fetchConnectors]);
 
   const handleCreate = () => {
     setEditing(null);
@@ -50,37 +45,33 @@ export default function ConnectorsPage() {
     setModalOpen(true);
   };
 
-  const handleSave = (data: {
+  const handleSave = async (data: {
     name: string;
     type: ConnectorType;
     credentials: Record<string, string>;
   }) => {
     if (editing) {
-      setConnectors((prev) =>
-        prev.map((c) =>
-          c.id === editing.id
-            ? { ...c, ...data, updatedAt: new Date().toLocaleString() }
-            : c,
-        ),
-      );
+      await fetch(`/api/connectors/${editing.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
     } else {
-      setConnectors((prev) => [
-        ...prev,
-        {
-          ...data,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toLocaleString(),
-          updatedAt: new Date().toLocaleString(),
-        },
-      ]);
+      await fetch("/api/connectors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
     }
     setModalOpen(false);
+    fetchConnectors();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleting) {
-      setConnectors((prev) => prev.filter((c) => c.id !== deleting.id));
+      await fetch(`/api/connectors/${deleting.id}`, { method: "DELETE" });
       setDeleting(null);
+      fetchConnectors();
     }
   };
 
@@ -91,6 +82,7 @@ export default function ConnectorsPage() {
     >
       <ConnectorTable
         connectors={connectors}
+        loading={loading}
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={setDeleting}

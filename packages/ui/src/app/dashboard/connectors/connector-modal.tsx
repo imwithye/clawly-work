@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Modal } from "@/components/modal";
-import type { Connector, ConnectorType } from "./page";
-import { connectorTypes } from "./connector-types";
 import type { ConnectorTypeConfig } from "./connector-types";
+import { connectorTypes } from "./connector-types";
+import type { Connector, ConnectorType } from "./page";
 
 type Step = "select-type" | "form";
 
@@ -109,7 +109,9 @@ export function ConnectorModal({
       ) : (
         <>
           <Modal.Header>
-            {editing ? "Edit Connector" : `New ${selectedType?.label} Connector`}
+            {editing
+              ? "Edit Connector"
+              : `New ${selectedType?.label} Connector`}
           </Modal.Header>
           <Modal.Body>
             <div className="space-y-3">

@@ -1,15 +1,17 @@
 import Image from "next/image";
 import { Button } from "@/components/button";
-import type { Connector } from "./page";
 import { connectorTypes } from "./connector-types";
+import type { Connector } from "./page";
 
 export function ConnectorTable({
   connectors,
+  loading,
   onCreate,
   onEdit,
   onDelete,
 }: {
   connectors: Connector[];
+  loading: boolean;
   onCreate: () => void;
   onEdit: (c: Connector) => void;
   onDelete: (c: Connector) => void;
@@ -44,7 +46,16 @@ export function ConnectorTable({
             </tr>
           </thead>
           <tbody>
-            {connectors.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-4 py-8 text-sm text-muted text-center"
+                >
+                  Loading...
+                </td>
+              </tr>
+            ) : connectors.length === 0 ? (
               <tr>
                 <td
                   colSpan={4}
@@ -78,7 +89,7 @@ export function ConnectorTable({
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-sm whitespace-nowrap text-muted">
-                      {c.updatedAt}
+                      {new Date(c.updatedAt).toLocaleString()}
                     </td>
                     <td className="px-4 py-2.5 text-sm whitespace-nowrap text-right">
                       <Button variant="ghost" onClick={() => onEdit(c)}>

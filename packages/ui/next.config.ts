@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ["@clawly-work/db"],
+  serverExternalPackages: ["postgres"],
 };
 
 export default nextConfig;
