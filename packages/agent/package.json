@@ -18,9 +18,12 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
     "@temporalio/activity": "^1.16.0",
     "@temporalio/client": "^1.16.0",
     "@temporalio/worker": "^1.16.0",
-    "@temporalio/workflow": "^1.16.0"
+    "@temporalio/workflow": "^1.16.0",
+    "ai": "^6.0.168",
+    "zod": "^4.3.6"
   }
 }

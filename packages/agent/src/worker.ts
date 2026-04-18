@@ -1,20 +1,24 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import * as activities from "./activities";
+import * as activities from "./activities/llm";
+import { TASK_QUEUE, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE } from "./constants";
 
 async function run() {
   const connection = await NativeConnection.connect({
-    address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
+    address: TEMPORAL_ADDRESS,
   });
 
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const worker = await Worker.create({
     connection,
-    namespace: "default",
-    taskQueue: "clawly-work",
-    workflowsPath: new URL("./workflows.js", import.meta.url).pathname,
+    namespace: TEMPORAL_NAMESPACE,
+    taskQueue: TASK_QUEUE,
+    workflowsPath: path.resolve(__dirname, "./workflows/agent-chat"),
     activities,
   });
 
-  console.log("Temporal worker started");
+  console.log(`Temporal worker started on task queue: ${TASK_QUEUE}`);
   await worker.run();
 }
 

@@ -13,6 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1032.0",
     "@clawly-work/db": "workspace:*",
     "@iconify/react": "^6.0.2",
+    "agent": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
     "geist": "^1.7.0",

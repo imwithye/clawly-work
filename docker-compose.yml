@@ -37,6 +37,7 @@ services:
       POSTGRES_USER: clawly_work
       POSTGRES_PWD: clawly_work
       POSTGRES_SEEDS: postgres
+      TEMPORAL_NAMESPACE: clawly-work
 
   temporal-ui:
     image: temporalio/ui:latest

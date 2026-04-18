@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@clawly-work/db"],
-  serverExternalPackages: ["postgres"],
+  transpilePackages: ["@clawly-work/db", "agent"],
+  serverExternalPackages: ["postgres", "@temporalio/client"],
 };
 
 export default nextConfig;
