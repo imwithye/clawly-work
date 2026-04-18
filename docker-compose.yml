@@ -37,7 +37,6 @@ services:
       POSTGRES_USER: clawly_work
       POSTGRES_PWD: clawly_work
       POSTGRES_SEEDS: postgres
-      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
 
   temporal-ui:
     image: temporalio/ui:latest
