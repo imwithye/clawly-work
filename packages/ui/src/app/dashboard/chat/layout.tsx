@@ -7,22 +7,10 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { startChatSession } from "@/lib/use-chat";
 
 type Session = {
-  sessionId: string;
+  id: string;
   title: string;
-  status: string;
-  startTime: string;
+  createdAt: string;
 };
-
-function statusDot(status: string) {
-  switch (status) {
-    case "RUNNING":
-      return "bg-success";
-    case "FAILED":
-      return "bg-danger";
-    default:
-      return "bg-muted/40";
-  }
-}
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -99,31 +87,28 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
             </p>
           ) : (
             sessions.map((s) => {
-              const active = activeSessionId === s.sessionId;
+              const active = activeSessionId === s.id;
               return (
                 <div
-                  key={s.sessionId}
+                  key={s.id}
                   className={`group flex items-center gap-2 px-2.5 py-2 text-xs transition-colors ${
                     active
                       ? "text-accent bg-default/50"
                       : "text-muted hover:text-foreground"
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`}
-                  />
                   <Link
-                    href={`/dashboard/chat/${s.sessionId}`}
+                    href={`/dashboard/chat/${s.id}`}
                     className="truncate flex-1"
                   >
                     {s.title}
                   </Link>
                   <span className="text-muted/60 shrink-0 group-hover:hidden">
-                    {timeAgo(s.startTime)}
+                    {timeAgo(s.createdAt)}
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleDelete(s.sessionId)}
+                    onClick={() => handleDelete(s.id)}
                     className="hidden group-hover:block shrink-0 text-muted hover:text-danger cursor-pointer"
                   >
                     <Icon icon="solar:trash-bin-2-linear" width={13} />

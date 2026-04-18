@@ -94,16 +94,11 @@ export function useChat(sessionId: string | null) {
 }
 
 export async function startChatSession(initialMessage?: string) {
-  const res = await fetch("/api/chat/start", { method: "POST" });
+  const res = await fetch("/api/chat/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: initialMessage }),
+  });
   const { sessionId } = await res.json();
-
-  if (initialMessage) {
-    await fetch("/api/chat/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, message: initialMessage }),
-    });
-  }
-
   return sessionId;
 }
