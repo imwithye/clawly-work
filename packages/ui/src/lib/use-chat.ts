@@ -18,6 +18,10 @@ export function useChat(sessionId: string | null) {
   useEffect(() => {
     if (!sessionId) return;
 
+    setMessages([]);
+    setStatus("idle");
+    let totalReceived = 0;
+
     const controller = new AbortController();
     eventSourceRef.current = controller;
 
@@ -46,7 +50,12 @@ export function useChat(sessionId: string | null) {
             try {
               const data = JSON.parse(match[1]);
               if (data.messages?.length > 0) {
-                setMessages((prev) => [...prev, ...data.messages]);
+                if (totalReceived === 0) {
+                  setMessages(data.messages);
+                } else {
+                  setMessages((prev) => [...prev, ...data.messages]);
+                }
+                totalReceived += data.messages.length;
               }
               if (data.status) {
                 setStatus(data.status);
@@ -70,11 +79,6 @@ export function useChat(sessionId: string | null) {
   const send = useCallback(
     async (message: string) => {
       if (!sessionId || !message.trim()) return;
-
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: message, ts: Date.now() },
-      ]);
       setStatus("thinking");
 
       await fetch("/api/chat/send", {

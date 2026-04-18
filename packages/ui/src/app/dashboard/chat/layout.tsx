@@ -49,9 +49,10 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh on route change
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, pathname]);
 
   const handleNew = async () => {
     setStarting(true);

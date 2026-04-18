@@ -1,4 +1,4 @@
-import { cancelSignal, chatWorkflowId, getTemporalClient } from "agent";
+import { chatWorkflowId, getTemporalClient } from "agent";
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   try {
     const desc = await handle.describe();
     if (desc.status.name === "RUNNING") {
-      await handle.signal(cancelSignal);
+      await handle.terminate("Deleted by user");
     }
   } catch {}
 
