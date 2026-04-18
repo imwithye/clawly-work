@@ -7,11 +7,17 @@ import {
   setHandler,
   workflowInfo,
 } from "@temporalio/workflow";
-import type * as activities from "../activities/llm";
+import type * as dbActivities from "../activities/db";
+import type * as llmActivities from "../activities/llm";
 
-const { callLLM, executeTool } = proxyActivities<typeof activities>({
+const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
   startToCloseTimeout: "2 minutes",
   retry: { maximumAttempts: 3 },
+});
+
+const { updateChatTitle } = proxyActivities<typeof dbActivities>({
+  startToCloseTimeout: "10 seconds",
+  retry: { maximumAttempts: 2 },
 });
 
 export type ChatMessage = {
@@ -27,16 +33,16 @@ export const getHistoryQuery = defineQuery<ChatMessage[]>("getHistory");
 export const getStatusQuery = defineQuery<"idle" | "thinking" | "tool_running">(
   "getStatus",
 );
-export const getTitleQuery = defineQuery<string>("getTitle");
 
 export async function agentChatWorkflow(
-  _sessionId: string,
+  sessionId: string,
   existingHistory: ChatMessage[] = [],
 ): Promise<void> {
   const history: ChatMessage[] = [...existingHistory];
   const pendingMessages: string[] = [];
   let status: "idle" | "thinking" | "tool_running" = "idle";
   let cancelled = false;
+  let titleSet = existingHistory.some((m) => m.role === "user");
 
   setHandler(userMessageSignal, (msg) => {
     pendingMessages.push(msg);
@@ -46,13 +52,6 @@ export async function agentChatWorkflow(
   });
   setHandler(getHistoryQuery, () => history);
   setHandler(getStatusQuery, () => status);
-  setHandler(getTitleQuery, () => {
-    const first = history.find((m) => m.role === "user");
-    if (!first) return "New conversation";
-    return first.content.length > 50
-      ? `${first.content.slice(0, 50)}...`
-      : first.content;
-  });
 
   while (!cancelled) {
     await condition(() => pendingMessages.length > 0 || cancelled);
@@ -60,6 +59,11 @@ export async function agentChatWorkflow(
 
     const userMsg = pendingMessages.shift() ?? "";
     history.push({ role: "user", content: userMsg, ts: Date.now() });
+
+    if (!titleSet) {
+      await updateChatTitle(sessionId, userMsg);
+      titleSet = true;
+    }
 
     let turn = 0;
     while (turn++ < 10) {
@@ -93,7 +97,7 @@ export async function agentChatWorkflow(
     status = "idle";
 
     if (workflowInfo().historyLength > 10_000) {
-      await continueAsNew<typeof agentChatWorkflow>(_sessionId, history);
+      await continueAsNew<typeof agentChatWorkflow>(sessionId, history);
     }
   }
 }

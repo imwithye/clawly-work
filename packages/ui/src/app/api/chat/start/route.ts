@@ -11,15 +11,9 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const initialMessage = body?.message as string | undefined;
 
-  const title = initialMessage
-    ? initialMessage.length > 50
-      ? `${initialMessage.slice(0, 50)}...`
-      : initialMessage
-    : "New conversation";
-
   const [chat] = await db
     .insert(chats)
-    .values({ title, workflowId: "pending" })
+    .values({ title: "New conversation", workflowId: "pending" })
     .returning();
 
   const workflowId = chatWorkflowId(chat.id);

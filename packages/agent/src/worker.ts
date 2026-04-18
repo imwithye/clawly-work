@@ -1,9 +1,12 @@
 import { config } from "dotenv";
+
 config({ path: "../../.env" });
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import * as activities from "./activities/llm";
+import * as dbActivities from "./activities/db";
+import * as llmActivities from "./activities/llm";
 import { TASK_QUEUE, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE } from "./constants";
 
 async function run() {
@@ -17,7 +20,7 @@ async function run() {
     namespace: TEMPORAL_NAMESPACE,
     taskQueue: TASK_QUEUE,
     workflowsPath: path.resolve(__dirname, "./workflows/agent-chat.ts"),
-    activities,
+    activities: { ...llmActivities, ...dbActivities },
   });
 
   console.log(`Temporal worker started on task queue: ${TASK_QUEUE}`);
