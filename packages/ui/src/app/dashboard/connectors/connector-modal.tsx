@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Modal } from "@/components/modal";
-import type { ConnectorTypeConfig } from "./connector-types";
-import { connectorTypes } from "./connector-types";
-import type { Connector, ConnectorType } from "./page";
+import type { ConnectorType, ConnectorTypeConfig } from "@/lib/connector-types";
+import { connectorTypes } from "@/lib/connector-types";
+import type { Connector } from "./page";
 
 type Step = "select-type" | "form";
 

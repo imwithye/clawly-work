@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/page-shell";
+import type { ConnectorType } from "@/lib/connector-types";
 import { ConnectorModal } from "./connector-modal";
 import { ConnectorTable } from "./connector-table";
 import { DeleteModal } from "./delete-modal";
-
-export type ConnectorType = "netsuite";
 
 export type Connector = {
   id: string;

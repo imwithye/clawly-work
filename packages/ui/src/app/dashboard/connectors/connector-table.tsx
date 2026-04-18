@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Button } from "@/components/button";
-import { connectorTypes } from "./connector-types";
+import { connectorTypes } from "@/lib/connector-types";
 import type { Connector } from "./page";
 
 export function ConnectorTable({

@@ -1,4 +1,6 @@
-import type { ConnectorType } from "./page";
+export type ConnectorType = "netsuite";
+
+export type Capability = "invoice-filling";
 
 export type CredentialField = {
   key: string;
@@ -12,6 +14,7 @@ export type ConnectorTypeConfig = {
   label: string;
   description: string;
   icon: string;
+  capabilities: Capability[];
   fields: CredentialField[];
 };
 
@@ -21,6 +24,7 @@ export const connectorTypes: ConnectorTypeConfig[] = [
     label: "NetSuite",
     description: "Oracle NetSuite ERP — Token-Based Authentication",
     icon: "/connectors/netsuite.svg",
+    capabilities: ["invoice-filling"],
     fields: [
       {
         key: "accountId",
@@ -57,3 +61,11 @@ export const connectorTypes: ConnectorTypeConfig[] = [
     ],
   },
 ];
+
+export function getTypeConfig(type: ConnectorType) {
+  return connectorTypes.find((t) => t.type === type);
+}
+
+export function getTypesWithCapability(capability: Capability) {
+  return connectorTypes.filter((t) => t.capabilities.includes(capability));
+}
