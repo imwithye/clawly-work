@@ -8,6 +8,7 @@ import { startChatSession } from "@/lib/use-chat";
 
 type Session = {
   sessionId: string;
+  title: string;
   status: string;
   startTime: string;
 };
@@ -99,9 +100,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(s.status)}`}
                   />
-                  <span className="truncate font-mono flex-1">
-                    {s.sessionId.slice(0, 12)}...
-                  </span>
+                  <span className="truncate flex-1">{s.title}</span>
                   <span className="text-muted/60 shrink-0">
                     {timeAgo(s.startTime)}
                   </span>

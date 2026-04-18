@@ -27,6 +27,7 @@ export const getHistoryQuery = defineQuery<ChatMessage[]>("getHistory");
 export const getStatusQuery = defineQuery<"idle" | "thinking" | "tool_running">(
   "getStatus",
 );
+export const getTitleQuery = defineQuery<string>("getTitle");
 
 export async function agentChatWorkflow(
   _sessionId: string,
@@ -45,6 +46,13 @@ export async function agentChatWorkflow(
   });
   setHandler(getHistoryQuery, () => history);
   setHandler(getStatusQuery, () => status);
+  setHandler(getTitleQuery, () => {
+    const first = history.find((m) => m.role === "user");
+    if (!first) return "New conversation";
+    return first.content.length > 50
+      ? `${first.content.slice(0, 50)}...`
+      : first.content;
+  });
 
   while (!cancelled) {
     await condition(() => pendingMessages.length > 0 || cancelled);
