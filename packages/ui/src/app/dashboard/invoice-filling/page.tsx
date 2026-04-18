@@ -11,6 +11,7 @@ import { Textarea } from "@/components/textarea";
 import type { ConnectorType } from "@/lib/connector-types";
 import { getTypesWithCapability } from "@/lib/connector-types";
 import { useConnectors } from "@/lib/use-connectors";
+import { useFileUpload } from "@/lib/use-file-upload";
 
 const supportedTypes = new Set<ConnectorType>(
   getTypesWithCapability("invoice-filling").map((t) => t.type),
@@ -21,11 +22,13 @@ const capabilityFilter = (c: { type: string }) =>
 
 export default function InvoiceFillingPage() {
   const { connectors, loading } = useConnectors(capabilityFilter);
+  const { files, upload, remove } = useFileUpload();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
   const [instructions, setInstructions] = useState("");
 
-  const canSubmit = selectedId && files.length > 0;
+  const allUploaded =
+    files.length > 0 && files.every((f) => f.status === "done");
+  const canSubmit = selectedId && allUploaded;
 
   const handleSubmit = () => {
     // TODO: submit to API
@@ -73,10 +76,8 @@ export default function InvoiceFillingPage() {
             <FileUpload
               label="Purchase Orders"
               files={files}
-              onAdd={(f) => setFiles((prev) => [...prev, ...f])}
-              onRemove={(i) =>
-                setFiles((prev) => prev.filter((_, idx) => idx !== i))
-              }
+              onAdd={upload}
+              onRemove={remove}
               accept=".pdf,.csv,.xlsx,.xls"
             />
 

@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify/react";
 import { useRef } from "react";
+import type { UploadedFile } from "@/lib/use-file-upload";
 import { Button } from "./button";
 import { FieldLabel } from "./field-label";
 
@@ -12,7 +13,7 @@ export function FileUpload({
   accept,
   label,
 }: {
-  files: File[];
+  files: UploadedFile[];
   onAdd: (files: File[]) => void;
   onRemove: (index: number) => void;
   accept?: string;
@@ -72,15 +73,11 @@ export function FileUpload({
         <div className="mt-2 space-y-1">
           {files.map((file, i) => (
             <div
-              key={`${file.name}-${file.size}-${file.lastModified}`}
+              key={`${file.name}-${file.key || i}`}
               className="flex items-center justify-between px-3 py-2 border border-border text-sm"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Icon
-                  icon="solar:document-text-linear"
-                  width={14}
-                  className="text-muted shrink-0"
-                />
+                <StatusIcon status={file.status} />
                 <span className="truncate">{file.name}</span>
                 <span className="text-xs text-muted shrink-0">
                   {formatSize(file.size)}
@@ -102,6 +99,35 @@ export function FileUpload({
       )}
     </div>
   );
+}
+
+function StatusIcon({ status }: { status: UploadedFile["status"] }) {
+  switch (status) {
+    case "uploading":
+      return (
+        <Icon
+          icon="solar:refresh-linear"
+          width={14}
+          className="text-muted shrink-0 animate-spin"
+        />
+      );
+    case "done":
+      return (
+        <Icon
+          icon="solar:check-circle-linear"
+          width={14}
+          className="text-success shrink-0"
+        />
+      );
+    case "error":
+      return (
+        <Icon
+          icon="solar:danger-triangle-linear"
+          width={14}
+          className="text-danger shrink-0"
+        />
+      );
+  }
 }
 
 function formatSize(bytes: number) {
