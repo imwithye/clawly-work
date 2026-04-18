@@ -9,7 +9,11 @@
     "check": "biome check --fix ."
   },
   "dependencies": {
+    "@iconify/react": "^6.0.2",
+    "framer-motion": "^12.38.0",
+    "geist": "^1.7.0",
     "next": "16.2.4",
+    "next-themes": "^0.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
