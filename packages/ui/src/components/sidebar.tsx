@@ -16,22 +16,12 @@ const nav = [
     ],
   },
   {
-    section: "MANAGEMENT",
+    section: "TASK",
     items: [
       {
-        label: "Agents",
-        href: "/dashboard/agents",
-        icon: "solar:bot-linear",
-      },
-      {
-        label: "Tasks",
-        href: "/dashboard/tasks",
-        icon: "solar:checklist-minimalistic-linear",
-      },
-      {
-        label: "API Keys",
-        href: "/dashboard/api-keys",
-        icon: "solar:key-linear",
+        label: "Invoice Filling",
+        href: "/dashboard/invoice-filling",
+        icon: "solar:document-text-linear",
       },
     ],
   },
@@ -39,14 +29,9 @@ const nav = [
     section: "SETTINGS",
     items: [
       {
-        label: "Team",
-        href: "/dashboard/team",
-        icon: "solar:users-group-rounded-linear",
-      },
-      {
-        label: "Settings",
-        href: "/dashboard/settings",
-        icon: "solar:settings-linear",
+        label: "Connectors",
+        href: "/dashboard/connectors",
+        icon: "solar:plug-circle-linear",
       },
     ],
   },
