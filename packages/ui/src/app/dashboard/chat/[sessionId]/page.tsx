@@ -50,8 +50,8 @@ export default function ChatPage({
             </div>
           )}
 
-          {messages.map((msg) => (
-            <MessageBubble key={msg.ts} message={msg} />
+          {messages.map((msg, i) => (
+            <MessageBubble key={`${msg.ts}-${msg.role}-${i}`} message={msg} />
           ))}
 
           {status !== "idle" && (
