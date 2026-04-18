@@ -70,8 +70,8 @@ export function ConnectorTable({
                           <Image
                             src={config.icon}
                             alt={config.label}
-                            width={14}
-                            height={14}
+                            width={22}
+                            height={22}
                           />
                         )}
                         {config?.label ?? c.type}
