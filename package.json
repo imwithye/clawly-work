@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "pnpm --filter ui dev",
     "dev:agent": "pnpm --filter agent dev",
-    "check": "biome check --fix ."
+    "check": "biome check --fix .",
+    "db:generate": "pnpm --filter @clawly/db generate",
+    "db:migrate": "pnpm --filter @clawly/db migrate",
+    "db:push": "pnpm --filter @clawly/db push",
+    "db:studio": "pnpm --filter @clawly/db studio"
   },
   "keywords": [],
   "author": "",

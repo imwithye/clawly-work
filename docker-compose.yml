@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: clawly-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: clawly
+      POSTGRES_PASSWORD: clawly
+      POSTGRES_DB: clawly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
