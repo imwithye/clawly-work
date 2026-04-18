@@ -86,8 +86,8 @@ export function ConnectorModal({
                   <Image
                     src={config.icon}
                     alt={config.label}
-                    width={48}
-                    height={48}
+                    width={96}
+                    height={96}
                     className="shrink-0"
                   />
                   <div>
@@ -121,8 +121,8 @@ export function ConnectorModal({
                   <Image
                     src={selectedType.icon}
                     alt={selectedType.label}
-                    width={28}
-                    height={28}
+                    width={56}
+                    height={56}
                   />
                   <span className="text-xs text-muted">
                     {selectedType.label}

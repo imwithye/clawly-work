@@ -53,7 +53,7 @@ function ConnectorCard({ connector }: { connector: Connector }) {
     <div className="border border-border p-4 flex flex-col gap-3 hover:border-accent/30 transition-colors">
       <div className="flex items-center gap-3">
         {config && (
-          <Image src={config.icon} alt={config.label} width={28} height={28} />
+          <Image src={config.icon} alt={config.label} width={56} height={56} />
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground truncate">
