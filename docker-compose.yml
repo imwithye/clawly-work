@@ -24,6 +24,32 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
 
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: clawly-work-temporal
+    depends_on:
+      - postgres
+    ports:
+      - "7233:7233"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: clawly_work
+      POSTGRES_PWD: clawly_work
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: clawly-work-temporal-ui
+    depends_on:
+      - temporal
+    ports:
+      - "8080:8080"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+
 volumes:
   pgdata:
   minio_data:

@@ -16,6 +16,9 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["@swc/core", "protobufjs"]
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12"
   }

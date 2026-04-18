@@ -1,1 +1,1 @@
-console.log("agent started");
+export { getTemporalClient, startGreetingWorkflow } from "./client";
