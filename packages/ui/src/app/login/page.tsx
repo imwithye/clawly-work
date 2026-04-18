@@ -37,7 +37,9 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="text-sm">
-                  <span className="text-foreground font-medium">Clawly Work</span>
+                  <span className="text-foreground font-medium">
+                    Clawly Work
+                  </span>
                   <span className="text-muted"> | Cross-entropy AI</span>
                 </p>
                 <p className="text-[10px] text-muted uppercase tracking-wider">
