@@ -2,7 +2,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
-import { S3_BUCKET, s3 } from "@/lib/s3";
+import { S3_BUCKET, s3Public } from "@/lib/s3";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       const key = `${nanoid()}${ext}`;
 
       const url = await getSignedUrl(
-        s3,
+        s3Public,
         new PutObjectCommand({
           Bucket: S3_BUCKET,
           Key: key,

@@ -1,7 +1,9 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
+import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
+import type { ProcessedFile } from "./files";
 
 let model: ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
 
@@ -149,48 +151,110 @@ function getMockToolSummary(history: ChatMessage[]): LLMResponse | undefined {
   };
 }
 
-export async function callLLM(history: ChatMessage[]): Promise<LLMResponse> {
+async function buildFileContextMessage(
+  fileContext: ProcessedFile[],
+): Promise<ModelMessage | null> {
+  if (fileContext.length === 0) return null;
+
+  const contentParts: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; image: Uint8Array; mimeType: string }
+  > = [];
+
+  contentParts.push({
+    type: "text",
+    text: "Here are the uploaded Purchase Order files for reference:",
+  });
+
+  for (const file of fileContext) {
+    if (file.type === "image" && file.imageKeys) {
+      contentParts.push({
+        type: "text",
+        text: `--- ${file.name} ---`,
+      });
+      for (const key of file.imageKeys) {
+        const buf = await getObject(key);
+        const isJpeg = key.endsWith(".jpg") || key.endsWith(".jpeg");
+        contentParts.push({
+          type: "image",
+          image: buf,
+          mimeType: isJpeg ? "image/jpeg" : "image/png",
+        });
+      }
+    } else if (file.type === "text" && file.text) {
+      contentParts.push({
+        type: "text",
+        text: `--- ${file.name} ---\n${file.text}`,
+      });
+    }
+  }
+
+  return { role: "user", content: contentParts } as ModelMessage;
+}
+
+export async function callLLM(
+  history: ChatMessage[],
+  fileContext?: ProcessedFile[],
+): Promise<LLMResponse> {
   const pendingMockTool = getPendingMockTool(history);
   if (pendingMockTool) return pendingMockTool;
 
   const mockToolSummary = getMockToolSummary(history);
   if (mockToolSummary) return mockToolSummary;
 
-  const messages: ModelMessage[] = history.flatMap((msg): ModelMessage[] => {
-    if (msg.role === "tool") {
-      const parsed = JSON.parse(msg.content) as StoredToolMessage;
-      const toolName = parsed.tool ?? "unknown_tool";
-      const toolCallId = parsed.toolCallId ?? "unknown_tool_call";
-      return [
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool-call",
-              toolCallId,
-              toolName,
-              input: parsed.args ?? {},
-            },
-          ],
-        },
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool-result",
-              toolCallId,
-              toolName,
-              output: {
-                type: "text",
-                value: JSON.stringify(parsed.result),
-              },
-            },
-          ],
-        },
-      ];
+  const messages: ModelMessage[] = [];
+
+  if (fileContext?.length) {
+    const fileMsg = await buildFileContextMessage(fileContext);
+    if (fileMsg) {
+      messages.push(fileMsg);
+      messages.push({
+        role: "assistant",
+        content:
+          "I've received and reviewed the uploaded files. How can I help you with them?",
+      });
     }
-    return [{ role: msg.role, content: msg.content }];
-  });
+  }
+
+  const historyMessages: ModelMessage[] = history.flatMap(
+    (msg): ModelMessage[] => {
+      if (msg.role === "tool") {
+        const parsed = JSON.parse(msg.content) as StoredToolMessage;
+        const toolName = parsed.tool ?? "unknown_tool";
+        const toolCallId = parsed.toolCallId ?? "unknown_tool_call";
+        return [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool-call",
+                toolCallId,
+                toolName,
+                input: parsed.args ?? {},
+              },
+            ],
+          },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool-result",
+                toolCallId,
+                toolName,
+                output: {
+                  type: "text",
+                  value: JSON.stringify(parsed.result),
+                },
+              },
+            ],
+          },
+        ];
+      }
+      return [{ role: msg.role, content: msg.content }];
+    },
+  );
+
+  messages.push(...historyMessages);
 
   const result = await generateText({
     model: getModel(),

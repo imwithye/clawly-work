@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import * as dbActivities from "./activities/db";
+import * as fileActivities from "./activities/files";
 import * as llmActivities from "./activities/llm";
 import { TASK_QUEUE, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE } from "./constants";
 
@@ -24,7 +25,7 @@ async function run() {
     namespace: TEMPORAL_NAMESPACE,
     taskQueue: TASK_QUEUE,
     workflowsPath: path.resolve(__dirname, "./workflows/agent-chat.ts"),
-    activities: { ...llmActivities, ...dbActivities },
+    activities: { ...llmActivities, ...dbActivities, ...fileActivities },
   });
 
   console.log(`Temporal worker started on task queue: ${TASK_QUEUE}`);

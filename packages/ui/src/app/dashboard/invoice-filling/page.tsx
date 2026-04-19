@@ -49,7 +49,8 @@ export default function InvoiceFillingPage() {
       .filter(Boolean)
       .join("\n");
 
-    const sessionId = await startChatSession(message);
+    const chatFiles = files.map((f) => ({ key: f.key, name: f.name }));
+    const sessionId = await startChatSession(message, chatFiles);
     router.push(`/dashboard/chat/${sessionId}`);
   };
 
@@ -97,7 +98,7 @@ export default function InvoiceFillingPage() {
               files={files}
               onAdd={upload}
               onRemove={remove}
-              accept=".pdf,.csv,.xlsx,.xls"
+              accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
             />
 
             <Textarea

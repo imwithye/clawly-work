@@ -111,6 +111,7 @@ services:
     environment:
       DATABASE_URL: postgresql://clawly_work:clawly_work@postgres:5432/clawly_work
       S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
       TEMPORAL_ADDRESS: temporal:7233
     profiles: [app]
 

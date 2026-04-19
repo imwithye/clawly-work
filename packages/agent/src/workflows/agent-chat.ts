@@ -8,11 +8,17 @@ import {
   workflowInfo,
 } from "@temporalio/workflow";
 import type * as dbActivities from "../activities/db";
+import type * as fileActivities from "../activities/files";
 import type * as llmActivities from "../activities/llm";
 
 const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
   startToCloseTimeout: "2 minutes",
   retry: { maximumAttempts: 3 },
+});
+
+const { processFiles } = proxyActivities<typeof fileActivities>({
+  startToCloseTimeout: "5 minutes",
+  retry: { maximumAttempts: 2 },
 });
 
 const { updateChatTitle, saveMessage, loadHistory } = proxyActivities<
@@ -50,6 +56,9 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
   const history: ChatMessage[] = (await loadHistory(
     sessionId,
   )) as ChatMessage[];
+
+  const fileContext = await processFiles(sessionId);
+
   const pendingMessages: {
     id?: number;
     content: string;
@@ -119,7 +128,7 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       status = "thinking";
       let response: Awaited<ReturnType<typeof callLLM>>;
       try {
-        response = await callLLM(history);
+        response = await callLLM(history, fileContext);
       } catch {
         const content =
           "Agent failed to generate a response. Check the agent worker logs and OpenRouter configuration.";

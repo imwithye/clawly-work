@@ -1,6 +1,5 @@
-import { chats, db, eq, messages } from "@clawly-work/db";
+import { chatFiles, chats, db, eq, messages } from "@clawly-work/db";
 import {
-  agentChatWorkflow,
   chatWorkflowId,
   getTemporalClient,
   TASK_QUEUE,
@@ -10,12 +9,21 @@ import {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const initialMessage = body?.message as string | undefined;
+  const files = body?.files as { key: string; name: string }[] | undefined;
 
   const [chat] = await db.insert(chats).values({}).returning();
 
+  if (files?.length) {
+    await db
+      .insert(chatFiles)
+      .values(
+        files.map((f) => ({ chatId: chat.id, key: f.key, name: f.name })),
+      );
+  }
+
   try {
     const client = await getTemporalClient();
-    const handle = await client.workflow.start(agentChatWorkflow, {
+    const handle = await client.workflow.start("agentChatWorkflow", {
       taskQueue: TASK_QUEUE,
       workflowId: chatWorkflowId(chat.id),
       args: [chat.id],
