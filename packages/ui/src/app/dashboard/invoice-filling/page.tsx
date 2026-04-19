@@ -45,6 +45,8 @@ export default function InvoiceFillingPage() {
       `Fill invoices using connector "${selectedConnector.name}" (${selectedConnector.type}).`,
       `Files: ${fileList}`,
       instructions ? `Instructions: ${instructions}` : "",
+      "",
+      "Please analyze the uploaded PO files and provide a structured summary in a markdown table (vendor, items, quantities, prices, totals, payment terms, etc.). Then ask me to confirm using action buttons before proceeding with invoice filling.",
     ]
       .filter(Boolean)
       .join("\n");

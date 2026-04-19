@@ -22,7 +22,7 @@ async function processPdf(key: string, name: string): Promise<ProcessedFile> {
 
   for (let i = 0; i < pageCount; i++) {
     const page = doc.loadPage(i);
-    const [, , w, h] = page.getBounds();
+    const [, , w, _h] = page.getBounds();
     // Scale to ~1500px wide for good readability
     const scale = Math.min(1500 / w, 3);
     const pixmap = page.toPixmap(

@@ -76,8 +76,12 @@ export default function ChatPage({
 
           {empty && <EmptyState />}
 
-          {messages.map((message) => (
-            <MessageBubble key={messageKey(message)} message={message} />
+          {messages.map((message, i) => (
+            <MessageBubble
+              key={messageKey(message)}
+              message={message}
+              onAction={i === messages.length - 1 ? send : undefined}
+            />
           ))}
 
           {status === "sending" && (
@@ -162,10 +166,31 @@ function EmptyState() {
   );
 }
 
+const ACTION_PATTERN = /\n?<!-- actions:([\s\S]*?) -->/;
+
+const PROSE_CLASSES =
+  "border border-border bg-background text-foreground prose prose-sm max-w-none prose-headings:text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:text-foreground prose-p:my-1.5 prose-strong:text-foreground prose-em:text-foreground prose-ul:my-1.5 prose-ol:my-1.5 prose-li:text-foreground prose-li:my-0.5 prose-a:text-foreground prose-a:underline prose-blockquote:text-muted prose-blockquote:border-border prose-code:text-foreground prose-code:text-xs prose-code:bg-surface prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[2px] prose-code:before:content-none prose-code:after:content-none prose-pre:bg-surface prose-pre:border prose-pre:border-border prose-pre:text-foreground prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-border prose-td:border prose-td:border-border prose-th:text-foreground prose-td:text-foreground prose-hr:border-border";
+
+function parseActions(content: string): {
+  body: string;
+  actions: { label: string; message: string }[];
+} {
+  const match = content.match(ACTION_PATTERN);
+  if (!match) return { body: content, actions: [] };
+  try {
+    const actions = JSON.parse(match[1]);
+    return { body: content.replace(ACTION_PATTERN, ""), actions };
+  } catch {
+    return { body: content, actions: [] };
+  }
+}
+
 function MessageBubble({
   message,
+  onAction,
 }: {
   message: { id?: number; role: string; content: string; ts?: number };
+  onAction?: (text: string) => void;
 }) {
   if (message.role === "tool") {
     let parsed: {
@@ -183,19 +208,39 @@ function MessageBubble({
 
   const isUser = message.role === "user";
 
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[78%] rounded-[3px] px-3 py-2 text-sm leading-6 bg-accent text-accent-foreground whitespace-pre-wrap">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  const { body, actions } = parseActions(message.content);
+
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[78%] rounded-[3px] px-3 py-2 text-sm leading-6 ${
-          isUser
-            ? "bg-accent text-accent-foreground whitespace-pre-wrap"
-            : "border border-border bg-background text-foreground prose prose-sm max-w-none prose-headings:text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:text-foreground prose-p:my-1.5 prose-strong:text-foreground prose-em:text-foreground prose-ul:my-1.5 prose-ol:my-1.5 prose-li:text-foreground prose-li:my-0.5 prose-a:text-foreground prose-a:underline prose-blockquote:text-muted prose-blockquote:border-border prose-code:text-foreground prose-code:text-xs prose-code:bg-surface prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[2px] prose-code:before:content-none prose-code:after:content-none prose-pre:bg-surface prose-pre:border prose-pre:border-border prose-pre:text-foreground prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-border prose-td:border prose-td:border-border prose-th:text-foreground prose-td:text-foreground prose-hr:border-border"
-        }`}
-      >
-        {isUser ? (
-          message.content
-        ) : (
-          <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+    <div className="flex justify-start">
+      <div className="max-w-[78%]">
+        <div
+          className={`rounded-[3px] px-3 py-2 text-sm leading-6 ${PROSE_CLASSES}`}
+        >
+          <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
+        </div>
+        {actions.length > 0 && onAction && (
+          <div className="mt-2 flex gap-2">
+            {actions.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                onClick={() => onAction(action.message)}
+                className="rounded-[3px] border border-border bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-opacity hover:opacity-80"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>
