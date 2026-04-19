@@ -1,6 +1,5 @@
-import { chats, db } from "@clawly-work/db";
+import { chats, db, eq } from "@clawly-work/db";
 import { chatWorkflowId, getTemporalClient } from "agent";
-import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const body = await req.json();

@@ -9,5 +9,6 @@ const connectionString =
 const client = postgres(connectionString);
 export const db = drizzle(client, { schema });
 
+export { and, desc, eq, gt } from "drizzle-orm";
 export * from "./schema";
 export type Database = typeof db;

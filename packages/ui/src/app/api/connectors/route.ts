@@ -1,5 +1,4 @@
-import { connectors, db, validateCredentials } from "@clawly-work/db";
-import { desc } from "drizzle-orm";
+import { connectors, db, desc, validateCredentials } from "@clawly-work/db";
 import { NextResponse } from "next/server";
 
 export async function GET() {

@@ -1,5 +1,4 @@
-import { connectors, db, validateCredentials } from "@clawly-work/db";
-import { eq } from "drizzle-orm";
+import { connectors, db, eq, validateCredentials } from "@clawly-work/db";
 import { NextResponse } from "next/server";
 
 export async function PUT(

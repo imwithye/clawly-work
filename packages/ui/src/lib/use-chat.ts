@@ -6,17 +6,44 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type { ChatMessage } from "agent";
 export type ChatStatus = "idle" | "sending";
 
+function messageKey(message: ChatMessage) {
+  return "id" in message && typeof message.id === "number"
+    ? `id:${message.id}`
+    : `${message.role}:${message.ts}:${message.content}`;
+}
+
+function mergeMessages(prev: ChatMessage[], next: ChatMessage[]) {
+  const seen = new Set(prev.map(messageKey));
+  const merged = [...prev];
+
+  for (const message of next) {
+    const key = messageKey(message);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(message);
+  }
+
+  return merged;
+}
+
 export function useChat(sessionId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("idle");
+  const [isLoading, setIsLoading] = useState(Boolean(sessionId));
   const eventSourceRef = useRef<AbortController | null>(null);
+  const waitingForAgentRef = useRef(false);
   const reconnectRef = useRef(0);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setIsLoading(false);
+      return;
+    }
 
     setMessages([]);
     setStatus("idle");
+    setIsLoading(true);
+    waitingForAgentRef.current = false;
     let firstBatch = true;
 
     const controller = new AbortController();
@@ -27,7 +54,10 @@ export function useChat(sessionId: string | null) {
         const res = await fetch(`/api/chat/stream?sessionId=${sessionId}`, {
           signal: controller.signal,
         });
-        if (!res.ok || !res.body) return;
+        if (!res.ok || !res.body) {
+          setIsLoading(false);
+          return;
+        }
 
         reconnectRef.current = 0;
         const reader = res.body.getReader();
@@ -47,20 +77,29 @@ export function useChat(sessionId: string | null) {
             if (!match) continue;
             try {
               const data = JSON.parse(match[1]);
-              if (data.messages?.length > 0) {
+              if (Array.isArray(data.messages)) {
+                const nextMessages = data.messages as ChatMessage[];
                 if (firstBatch) {
-                  setMessages(data.messages);
+                  setMessages(nextMessages);
                   firstBatch = false;
+                  setIsLoading(false);
                 } else {
-                  setMessages((prev) => [...prev, ...data.messages]);
+                  setMessages((prev) => mergeMessages(prev, nextMessages));
                 }
-                setStatus("idle");
+
+                if (nextMessages.some((message) => message.role !== "user")) {
+                  waitingForAgentRef.current = false;
+                }
+                if (!waitingForAgentRef.current) {
+                  setStatus("idle");
+                }
               }
             } catch {}
           }
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        setIsLoading(false);
       }
 
       // Reconnect on disconnect
@@ -82,6 +121,7 @@ export function useChat(sessionId: string | null) {
   const send = useCallback(
     async (message: string) => {
       if (!sessionId || !message.trim()) return;
+      waitingForAgentRef.current = true;
       setStatus("sending");
 
       try {
@@ -91,16 +131,24 @@ export function useChat(sessionId: string | null) {
           body: JSON.stringify({ sessionId, message }),
         });
         if (!res.ok) {
+          waitingForAgentRef.current = false;
           setStatus("idle");
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        if (data.message) {
+          setMessages((prev) => mergeMessages(prev, [data.message]));
         }
       } catch {
+        waitingForAgentRef.current = false;
         setStatus("idle");
       }
     },
     [sessionId],
   );
 
-  return { messages, status, send };
+  return { messages, status, isLoading, send };
 }
 
 export async function startChatSession(initialMessage?: string) {

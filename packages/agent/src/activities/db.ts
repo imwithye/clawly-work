@@ -1,5 +1,4 @@
-import { chats, db, messages } from "@clawly-work/db";
-import { eq } from "drizzle-orm";
+import { chats, db, eq, messages } from "@clawly-work/db";
 
 export async function updateChatTitle(
   sessionId: string,
@@ -16,13 +15,23 @@ export async function saveMessage(
   chatId: string,
   role: string,
   content: string,
-): Promise<void> {
-  await db.insert(messages).values({ chatId, role, content });
+): Promise<{ id: number; role: string; content: string; ts: number }> {
+  const [message] = await db
+    .insert(messages)
+    .values({ chatId, role, content })
+    .returning();
+
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    ts: message.ts.getTime(),
+  };
 }
 
 export async function loadHistory(
   chatId: string,
-): Promise<{ role: string; content: string; ts: number }[]> {
+): Promise<{ id: number; role: string; content: string; ts: number }[]> {
   const rows = await db
     .select()
     .from(messages)
@@ -30,6 +39,7 @@ export async function loadHistory(
     .orderBy(messages.id);
 
   return rows.map((r) => ({
+    id: r.id,
     role: r.role,
     content: r.content,
     ts: r.ts.getTime(),

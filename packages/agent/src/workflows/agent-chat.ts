@@ -23,12 +23,22 @@ const { updateChatTitle, saveMessage, loadHistory } = proxyActivities<
 });
 
 export type ChatMessage = {
+  id?: number;
   role: "user" | "assistant" | "tool";
   content: string;
   ts: number;
 };
 
-export const userMessageSignal = defineSignal<[string]>("userMessage");
+type UserMessageSignal =
+  | string
+  | {
+      id?: number;
+      content: string;
+      persisted?: boolean;
+    };
+
+export const userMessageSignal =
+  defineSignal<[UserMessageSignal]>("userMessage");
 export const cancelSignal = defineSignal("cancel");
 
 export const getHistoryQuery = defineQuery<ChatMessage[]>("getHistory");
@@ -40,13 +50,25 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
   const history: ChatMessage[] = (await loadHistory(
     sessionId,
   )) as ChatMessage[];
-  const pendingMessages: string[] = [];
+  const pendingMessages: {
+    id?: number;
+    content: string;
+    persisted: boolean;
+  }[] = [];
   let status: "idle" | "thinking" | "tool_running" = "idle";
   let cancelled = false;
   let titleSet = history.some((m) => m.role === "user");
 
   setHandler(userMessageSignal, (msg) => {
-    pendingMessages.push(msg);
+    pendingMessages.push(
+      typeof msg === "string"
+        ? { content: msg, persisted: false }
+        : {
+            content: msg.content,
+            id: msg.id,
+            persisted: msg.persisted ?? false,
+          },
+    );
   });
   setHandler(cancelSignal, () => {
     cancelled = true;
@@ -58,41 +80,95 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
     await condition(() => pendingMessages.length > 0 || cancelled);
     if (cancelled) break;
 
-    const userMsg = pendingMessages.shift() ?? "";
-    history.push({ role: "user", content: userMsg, ts: Date.now() });
-    await saveMessage(sessionId, "user", userMsg);
+    const userMsg = pendingMessages.shift();
+    if (!userMsg) continue;
+
+    const alreadyInHistory =
+      userMsg.id !== undefined && history.some((msg) => msg.id === userMsg.id);
+
+    if (!alreadyInHistory) {
+      history.push({
+        id: userMsg.id,
+        role: "user",
+        content: userMsg.content,
+        ts: Date.now(),
+      });
+    }
+
+    if (!userMsg.persisted) {
+      const saved = await saveMessage(sessionId, "user", userMsg.content);
+      const historyMsg = history.find(
+        (msg) =>
+          msg.role === "user" &&
+          msg.content === userMsg.content &&
+          msg.id === undefined,
+      );
+      if (historyMsg) {
+        historyMsg.id = saved.id;
+        historyMsg.ts = saved.ts;
+      }
+    }
 
     if (!titleSet) {
-      await updateChatTitle(sessionId, userMsg);
+      await updateChatTitle(sessionId, userMsg.content);
       titleSet = true;
     }
 
     let turn = 0;
     while (turn++ < 10) {
       status = "thinking";
-      const response = await callLLM(history);
+      let response: Awaited<ReturnType<typeof callLLM>>;
+      try {
+        response = await callLLM(history);
+      } catch {
+        const content =
+          "Agent failed to generate a response. Check the agent worker logs and OpenRouter configuration.";
+        const saved = await saveMessage(sessionId, "assistant", content);
+        history.push({
+          id: saved.id,
+          role: "assistant",
+          content,
+          ts: saved.ts,
+        });
+        break;
+      }
 
       if (response.type === "message") {
+        const saved = await saveMessage(
+          sessionId,
+          "assistant",
+          response.content,
+        );
         history.push({
+          id: saved.id,
           role: "assistant",
           content: response.content,
-          ts: Date.now(),
+          ts: saved.ts,
         });
-        await saveMessage(sessionId, "assistant", response.content);
         break;
       }
 
       if (response.type === "tool_call") {
         status = "tool_running";
-        const result = await executeTool(response.tool, response.args);
+        let result: unknown;
+        try {
+          result = await executeTool(response.tool, response.args);
+        } catch {
+          result = { error: `Tool failed: ${response.tool}` };
+        }
         const toolContent = JSON.stringify({
           tool: response.tool,
           toolCallId: response.toolCallId,
           args: response.args,
           result,
         });
-        history.push({ role: "tool", content: toolContent, ts: Date.now() });
-        await saveMessage(sessionId, "tool", toolContent);
+        const saved = await saveMessage(sessionId, "tool", toolContent);
+        history.push({
+          id: saved.id,
+          role: "tool",
+          content: toolContent,
+          ts: saved.ts,
+        });
       }
     }
     status = "idle";

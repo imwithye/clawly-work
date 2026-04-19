@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, tool } from "ai";
+import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
 import type { ChatMessage } from "../workflows/agent-chat";
 
@@ -10,7 +10,6 @@ function getModel() {
     model = createOpenAI({
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: process.env.OPENROUTER_API_KEY,
-      compatibility: "compatible",
     }).chat(process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4");
   }
   return model;
@@ -25,30 +24,48 @@ export type LLMResponse =
       args: Record<string, unknown>;
     };
 
+type StoredToolMessage = {
+  tool?: string;
+  toolCallId?: string;
+  args?: unknown;
+  result?: unknown;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export async function callLLM(history: ChatMessage[]): Promise<LLMResponse> {
-  const messages = history.flatMap((msg) => {
+  const messages: ModelMessage[] = history.flatMap((msg): ModelMessage[] => {
     if (msg.role === "tool") {
-      const parsed = JSON.parse(msg.content);
+      const parsed = JSON.parse(msg.content) as StoredToolMessage;
+      const toolName = parsed.tool ?? "unknown_tool";
+      const toolCallId = parsed.toolCallId ?? "unknown_tool_call";
       return [
         {
-          role: "assistant" as const,
+          role: "assistant",
           content: [
             {
-              type: "tool-call" as const,
-              toolCallId: parsed.toolCallId,
-              toolName: parsed.tool,
-              args: parsed.args ?? {},
+              type: "tool-call",
+              toolCallId,
+              toolName,
+              input: parsed.args ?? {},
             },
           ],
         },
         {
-          role: "tool" as const,
+          role: "tool",
           content: [
             {
-              type: "tool-result" as const,
-              toolCallId: parsed.toolCallId,
-              toolName: parsed.tool,
-              result: parsed.result,
+              type: "tool-result",
+              toolCallId,
+              toolName,
+              output: {
+                type: "text",
+                value: JSON.stringify(parsed.result),
+              },
             },
           ],
         },
@@ -62,7 +79,7 @@ export async function callLLM(history: ChatMessage[]): Promise<LLMResponse> {
     tools: {
       web_search: tool({
         description: "Search the web for information",
-        parameters: z.object({ query: z.string() }),
+        inputSchema: z.object({ query: z.string() }),
       }),
     },
     messages,
@@ -74,7 +91,7 @@ export async function callLLM(history: ChatMessage[]): Promise<LLMResponse> {
       type: "tool_call",
       tool: toolCall.toolName,
       toolCallId: toolCall.toolCallId,
-      args: toolCall.args as Record<string, unknown>,
+      args: asRecord(toolCall.input),
     };
   }
 

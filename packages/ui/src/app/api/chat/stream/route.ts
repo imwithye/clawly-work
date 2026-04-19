@@ -1,5 +1,4 @@
-import { db, messages } from "@clawly-work/db";
-import { and, eq, gt } from "drizzle-orm";
+import { and, db, eq, gt, messages } from "@clawly-work/db";
 
 export async function GET(req: Request) {
   const sessionId = new URL(req.url).searchParams.get("sessionId");
@@ -13,6 +12,29 @@ export async function GET(req: Request) {
       let lastId = 0;
       let closed = false;
 
+      const sendMessages = (
+        rows: {
+          id: number;
+          role: string;
+          content: string;
+          ts: Date;
+        }[],
+      ) => {
+        if (rows.length > 0) {
+          lastId = rows[rows.length - 1].id;
+        }
+
+        const msgs = rows.map((r) => ({
+          id: r.id,
+          role: r.role,
+          content: r.content,
+          ts: r.ts.getTime(),
+        }));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ messages: msgs })}\n\n`),
+        );
+      };
+
       const cleanup = () => {
         if (!closed) {
           closed = true;
@@ -23,7 +45,7 @@ export async function GET(req: Request) {
         }
       };
 
-      const interval = setInterval(async () => {
+      const poll = async (force = false) => {
         if (closed) return;
         try {
           const rows = await db
@@ -36,20 +58,17 @@ export async function GET(req: Request) {
             )
             .orderBy(messages.id);
 
-          if (rows.length > 0) {
-            lastId = rows[rows.length - 1].id;
-            const msgs = rows.map((r) => ({
-              role: r.role,
-              content: r.content,
-              ts: r.ts.getTime(),
-            }));
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ messages: msgs })}\n\n`),
-            );
+          if (force || rows.length > 0) {
+            sendMessages(rows);
           }
         } catch {
           cleanup();
         }
+      };
+
+      poll(true);
+      const interval = setInterval(() => {
+        poll();
       }, 500);
 
       req.signal.addEventListener("abort", cleanup);

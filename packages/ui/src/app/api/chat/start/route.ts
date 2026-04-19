@@ -1,4 +1,4 @@
-import { chats, db } from "@clawly-work/db";
+import { chats, db, eq, messages } from "@clawly-work/db";
 import {
   agentChatWorkflow,
   chatWorkflowId,
@@ -6,7 +6,6 @@ import {
   TASK_QUEUE,
   userMessageSignal,
 } from "agent";
-import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -23,7 +22,27 @@ export async function POST(req: Request) {
     });
 
     if (initialMessage) {
-      await handle.signal(userMessageSignal, initialMessage);
+      const [savedMessage] = await db
+        .insert(messages)
+        .values({ chatId: chat.id, role: "user", content: initialMessage })
+        .returning();
+
+      await db
+        .update(chats)
+        .set({
+          title:
+            initialMessage.length > 50
+              ? `${initialMessage.slice(0, 50)}...`
+              : initialMessage,
+          updatedAt: new Date(),
+        })
+        .where(eq(chats.id, chat.id));
+
+      await handle.signal(userMessageSignal, {
+        id: savedMessage.id,
+        content: initialMessage,
+        persisted: true,
+      });
     }
   } catch {
     await db.delete(chats).where(eq(chats.id, chat.id));

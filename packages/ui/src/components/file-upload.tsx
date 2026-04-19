@@ -50,24 +50,17 @@ export function FileUpload({
         className="hidden"
       />
 
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         onClick={openPicker}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openPicker();
-          }
-        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        className="border border-dashed border-border hover:border-accent/50 p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors focus:outline-none focus:border-accent"
+        className="flex w-full cursor-pointer flex-col items-center gap-2 border border-dashed border-border p-6 text-center transition-colors hover:border-accent/50 focus:border-accent focus:outline-none"
       >
         <Icon icon="solar:upload-linear" width={24} className="text-muted" />
         <p className="text-sm text-muted">Drop files here or click to browse</p>
         {accept && <p className="text-xs text-muted/50">{accept}</p>}
-      </div>
+      </button>
 
       {files.length > 0 && (
         <div className="mt-2 space-y-1">

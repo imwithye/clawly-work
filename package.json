@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "pnpm --filter ui dev",
+    "dev": "concurrently -n ui,agent -c cyan,magenta \"pnpm dev:ui\" \"pnpm dev:agent\"",
+    "dev:ui": "pnpm --filter ui dev",
     "dev:agent": "pnpm --filter agent dev",
     "check": "biome check --fix .",
     "db:generate": "pnpm --filter @clawly-work/db generate",
@@ -17,9 +18,13 @@
   "license": "ISC",
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["@swc/core", "protobufjs"]
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "protobufjs"
+    ]
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.12"
+    "@biomejs/biome": "^2.4.12",
+    "concurrently": "^9.2.1"
   }
 }
