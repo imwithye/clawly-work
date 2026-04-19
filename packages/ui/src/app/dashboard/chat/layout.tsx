@@ -39,9 +39,13 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     [activeSessionId, sessions],
   );
 
-  const refresh = useCallback(async () => {
+  const refreshSessions = useCallback(async () => {
+    setLoading(true);
     const res = await fetch("/api/chat/sessions");
-    if (!res.ok) return;
+    if (!res.ok) {
+      setLoading(false);
+      return;
+    }
     const next = await res.json();
     setSessions((prev) =>
       JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
@@ -49,19 +53,40 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh on route change + poll
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 3000);
-    return () => clearInterval(interval);
-  }, [refresh, pathname]);
+    setLoading(true);
+    const eventSource = new EventSource("/api/chat/sessions/stream");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!Array.isArray(data.sessions)) return;
+        setSessions((prev) =>
+          JSON.stringify(prev) === JSON.stringify(data.sessions)
+            ? prev
+            : data.sessions,
+        );
+        setLoading(false);
+      } catch {
+        setLoading(false);
+      }
+    };
+
+    eventSource.onerror = () => {
+      setLoading(false);
+    };
+
+    return () => eventSource.close();
+  }, []);
 
   const handleNew = async () => {
     setStarting(true);
-    const sessionId = await startChatSession();
-    await refresh();
-    setStarting(false);
-    router.push(`/dashboard/chat/${sessionId}`);
+    try {
+      const sessionId = await startChatSession();
+      router.push(`/dashboard/chat/${sessionId}`);
+    } finally {
+      setStarting(false);
+    }
   };
 
   const handleDelete = async (sessionId: string) => {
@@ -70,7 +95,6 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId }),
     });
-    await refresh();
     if (activeSessionId === sessionId) {
       router.push("/dashboard/chat");
     }
@@ -100,7 +124,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
             </div>
             <button
               type="button"
-              onClick={refresh}
+              onClick={refreshSessions}
               disabled={loading}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[3px] border border-border bg-background text-muted transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-40"
               aria-label="Refresh conversations"
