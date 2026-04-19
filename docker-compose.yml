@@ -10,6 +10,11 @@ services:
       POSTGRES_DB: clawly_work
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clawly_work"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     image: minio/minio:latest
@@ -23,12 +28,32 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: clawly-work-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 clawly_work clawly_work &&
+        mc mb --ignore-existing local/uploads &&
+        echo 'Bucket uploads ready'
+      "
 
   temporal:
     image: temporalio/auto-setup:latest
     container_name: clawly-work-temporal
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "7233:7233"
     environment:
@@ -38,19 +63,22 @@ services:
       POSTGRES_PWD: clawly_work
       POSTGRES_SEEDS: postgres
       TEMPORAL_NAMESPACE: clawly-work
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z $(hostname -i) 7233"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
 
   temporal-init:
     image: temporalio/admin-tools:latest
     container_name: clawly-work-temporal-init
     depends_on:
-      - temporal
+      temporal:
+        condition: service_healthy
     restart: "no"
     entrypoint: >
       sh -c "
-        until temporal operator namespace describe -n clawly-work --address temporal:7233 2>/dev/null; do
-          echo 'Waiting for Temporal...';
-          sleep 2;
-        done ||
         temporal operator namespace create -n clawly-work --address temporal:7233 2>/dev/null;
         echo 'Namespace clawly-work ready'
       "
@@ -59,12 +87,61 @@ services:
     image: temporalio/ui:latest
     container_name: clawly-work-temporal-ui
     depends_on:
-      - temporal
+      temporal:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CORS_ORIGINS: http://localhost:3000
+
+  ui:
+    build:
+      context: .
+      dockerfile: packages/ui/Dockerfile
+    container_name: clawly-work-ui
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://clawly_work:clawly_work@postgres:5432/clawly_work
+      S3_ENDPOINT: http://minio:9000
+      TEMPORAL_ADDRESS: temporal:7233
+    profiles: [app]
+
+  agent:
+    build:
+      context: .
+      dockerfile: packages/agent/Dockerfile
+    container_name: clawly-work-agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://clawly_work:clawly_work@postgres:5432/clawly_work
+      S3_ENDPOINT: http://minio:9000
+      TEMPORAL_ADDRESS: temporal:7233
+    profiles: [app]
+
+  db-push:
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    container_name: clawly-work-db-push
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://clawly_work:clawly_work@postgres:5432/clawly_work
+    profiles: [app]
 
 volumes:
   pgdata:

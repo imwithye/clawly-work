@@ -7,17 +7,17 @@
   "scripts": {
     "dev": "tsx watch src/worker.ts",
     "build": "tsc",
-    "start": "node dist/worker.js"
+    "start": "node --import tsx/esm dist/worker.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.19.39",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "@ai-sdk/openai": "^3.0.53",
     "@clawly-work/db": "workspace:*",
     "@temporalio/activity": "^1.16.0",
