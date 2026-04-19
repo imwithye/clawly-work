@@ -1,16 +1,20 @@
 "use client";
 
 import { Icon } from "@iconify/react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { startChatSession } from "@/lib/use-chat";
+import { ChatProvider, type ChatSession } from "./chat-context";
 
-type Session = {
-  id: string;
-  title: string;
-  createdAt: string;
-};
+type Session = ChatSession;
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -30,6 +34,10 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   const [starting, setStarting] = useState(false);
 
   const activeSessionId = pathname.match(/\/chat\/(.+)/)?.[1];
+  const activeSession = useMemo(
+    () => sessions.find((session) => session.id === activeSessionId),
+    [activeSessionId, sessions],
+  );
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/chat/sessions");
@@ -73,11 +81,22 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
       <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar">
         <div className="border-b border-border px-3 py-3">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">Agent Chat</p>
-              <p className="mt-0.5 text-xs text-muted">
-                {sessions.length} conversations
-              </p>
+            <div className="flex min-w-0 items-center gap-2">
+              <Image
+                src="/logo.svg"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 shrink-0 rounded-[3px]"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  Agent Chat
+                </p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {sessions.length} conversations
+                </p>
+              </div>
             </div>
             <button
               type="button"
@@ -159,7 +178,9 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <section className="min-h-0 min-w-0">{children}</section>
+      <section className="min-h-0 min-w-0">
+        <ChatProvider activeSession={activeSession}>{children}</ChatProvider>
+      </section>
     </div>
   );
 }

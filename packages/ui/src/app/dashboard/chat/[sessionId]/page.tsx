@@ -3,6 +3,7 @@
 import { Icon } from "@iconify/react";
 import { type KeyboardEvent, use, useEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/use-chat";
+import { useActiveChatSession } from "../chat-context";
 
 export default function ChatPage({
   params,
@@ -10,6 +11,7 @@ export default function ChatPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = use(params);
+  const activeSession = useActiveChatSession();
   const { messages, status, isLoading, send } = useChat(sessionId);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -58,7 +60,7 @@ export default function ChatPage({
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">
-            Conversation
+            {activeSession?.title ?? "Conversation"}
           </p>
           <p className="mt-0.5 truncate text-[11px] text-muted">
             {sessionId.slice(0, 10)}
