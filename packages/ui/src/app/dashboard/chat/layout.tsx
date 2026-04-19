@@ -202,7 +202,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <section className="min-h-0 min-w-0">
+      <section className="h-full min-h-0 min-w-0 overflow-hidden">
         <ChatProvider activeSession={activeSession}>{children}</ChatProvider>
       </section>
     </div>

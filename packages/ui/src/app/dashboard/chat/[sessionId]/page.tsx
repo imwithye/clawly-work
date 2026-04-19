@@ -13,7 +13,7 @@ export default function ChatPage({
   const { sessionId } = use(params);
   const activeSession = useActiveChatSession();
   const { messages, status, isLoading, send } = useChat(sessionId);
-  const [input, setInput] = useState("");
+  const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -27,23 +27,15 @@ export default function ChatPage({
     textareaRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
-  });
-
   const handleSubmit = () => {
-    const draft = textareaRef.current?.value ?? input;
-    const message = draft.trim();
+    const rawMessage = textareaRef.current?.value ?? draft;
+    const message = rawMessage.trim();
     if (!message || status !== "idle") return;
     send(message);
     if (textareaRef.current) {
       textareaRef.current.value = "";
-      textareaRef.current.style.height = "auto";
     }
-    setInput("");
+    setDraft("");
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -106,12 +98,13 @@ export default function ChatPage({
           <div className="grid grid-cols-[minmax(0,1fr)_36px] items-end gap-2 border border-border bg-background p-2">
             <textarea
               ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onInput={(e) => {
+                setDraft(e.currentTarget.value);
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
-              rows={1}
-              className="max-h-[180px] min-h-9 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted/60"
+              rows={3}
+              className="h-20 resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted/60"
             />
             <button
               type="button"
@@ -119,7 +112,7 @@ export default function ChatPage({
               onClick={handleSubmit}
               disabled={status !== "idle"}
               className={`flex h-9 w-9 items-center justify-center rounded-[3px] bg-accent text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-30 ${
-                input.trim() ? "" : "opacity-30"
+                draft.trim() ? "" : "opacity-30"
               }`}
               aria-label="Send message"
             >
