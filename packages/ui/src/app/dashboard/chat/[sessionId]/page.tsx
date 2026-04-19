@@ -189,7 +189,7 @@ function MessageBubble({
         className={`max-w-[78%] rounded-[3px] px-3 py-2 text-sm leading-6 ${
           isUser
             ? "bg-accent text-accent-foreground whitespace-pre-wrap"
-            : "border border-border bg-background text-foreground prose prose-sm prose-neutral dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-pre:bg-surface prose-pre:border prose-pre:border-border prose-code:text-xs prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-border prose-td:border prose-td:border-border"
+            : "border border-border bg-background text-foreground prose prose-sm max-w-none prose-headings:text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:text-foreground prose-p:my-1.5 prose-strong:text-foreground prose-em:text-foreground prose-ul:my-1.5 prose-ol:my-1.5 prose-li:text-foreground prose-li:my-0.5 prose-a:text-foreground prose-a:underline prose-blockquote:text-muted prose-blockquote:border-border prose-code:text-foreground prose-code:text-xs prose-code:bg-surface prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[2px] prose-code:before:content-none prose-code:after:content-none prose-pre:bg-surface prose-pre:border prose-pre:border-border prose-pre:text-foreground prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-border prose-td:border prose-td:border-border prose-th:text-foreground prose-td:text-foreground prose-hr:border-border"
         }`}
       >
         {isUser ? (
