@@ -2,6 +2,8 @@
 
 import { Icon } from "@iconify/react";
 import { type KeyboardEvent, use, useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useChat } from "@/lib/use-chat";
 import { useActiveChatSession } from "../chat-context";
 
@@ -184,13 +186,17 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[78%] rounded-[3px] px-3 py-2 text-sm leading-6 whitespace-pre-wrap ${
+        className={`max-w-[78%] rounded-[3px] px-3 py-2 text-sm leading-6 ${
           isUser
-            ? "bg-accent text-accent-foreground"
-            : "border border-border bg-background text-foreground"
+            ? "bg-accent text-accent-foreground whitespace-pre-wrap"
+            : "border border-border bg-background text-foreground prose prose-sm prose-neutral dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-pre:bg-surface prose-pre:border prose-pre:border-border prose-code:text-xs prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-border prose-td:border prose-td:border-border"
         }`}
       >
-        {message.content}
+        {isUser ? (
+          message.content
+        ) : (
+          <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+        )}
       </div>
     </div>
   );
