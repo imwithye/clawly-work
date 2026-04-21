@@ -12,7 +12,10 @@ export const s3 = new S3Client({
 
 // Presigned URLs must use the browser-accessible endpoint, not Docker-internal
 export const s3Public = new S3Client({
-  endpoint: process.env.S3_PUBLIC_ENDPOINT || process.env.S3_ENDPOINT || "http://localhost:9000",
+  endpoint:
+    process.env.S3_PUBLIC_ENDPOINT ||
+    process.env.S3_ENDPOINT ||
+    "http://localhost:9000",
   region: "us-east-1",
   credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY || "clawly_work",
