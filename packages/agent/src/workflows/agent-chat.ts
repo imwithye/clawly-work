@@ -22,11 +22,16 @@ const { processFiles } = proxyActivities<typeof fileActivities>({
   retry: { maximumAttempts: 2 },
 });
 
-const { updateChatTitle, saveMessage, loadHistory, loadConnectorCredentials } =
-  proxyActivities<typeof dbActivities>({
-    startToCloseTimeout: "10 seconds",
-    retry: { maximumAttempts: 2 },
-  });
+const {
+  updateChatTitle,
+  saveMessage,
+  loadHistory,
+  loadConnectorCredentials,
+  loadConnectorInfo,
+} = proxyActivities<typeof dbActivities>({
+  startToCloseTimeout: "10 seconds",
+  retry: { maximumAttempts: 2 },
+});
 
 export type ChatMessage = {
   id?: number;
@@ -123,12 +128,14 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       titleSet = true;
     }
 
+    const connectorInfo = await loadConnectorInfo(sessionId);
+
     let turn = 0;
     while (turn++ < 10) {
       status = "thinking";
       let response: Awaited<ReturnType<typeof callLLM>>;
       try {
-        response = await callLLM(history, fileContext);
+        response = await callLLM(history, fileContext, connectorInfo);
       } catch {
         const content =
           "Agent failed to generate a response. Check the agent worker logs and OpenRouter configuration.";

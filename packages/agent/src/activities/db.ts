@@ -64,3 +64,31 @@ export async function loadConnectorCredentials(
   if (!connector) return null;
   return connector.credentials as Record<string, string>;
 }
+
+export async function loadConnectorInfo(
+  sessionId: string,
+): Promise<{ name: string; type: string; accountId?: string } | null> {
+  const [chat] = await db
+    .select({ connectorId: chats.connectorId })
+    .from(chats)
+    .where(eq(chats.id, sessionId));
+
+  if (!chat?.connectorId) return null;
+
+  const [connector] = await db
+    .select({
+      name: connectors.name,
+      type: connectors.type,
+      credentials: connectors.credentials,
+    })
+    .from(connectors)
+    .where(eq(connectors.id, chat.connectorId));
+
+  if (!connector) return null;
+  const creds = connector.credentials as Record<string, string>;
+  return {
+    name: connector.name,
+    type: connector.type,
+    accountId: creds.accountId,
+  };
+}

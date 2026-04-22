@@ -81,9 +81,16 @@ async function buildFileContextMessage(
   return { role: "user", content: contentParts } as ModelMessage;
 }
 
+export type ConnectorInfo = {
+  name: string;
+  type: string;
+  accountId?: string;
+} | null;
+
 export async function callLLM(
   history: ChatMessage[],
   fileContext?: ProcessedFile[],
+  connectorInfo?: ConnectorInfo,
 ): Promise<LLMResponse> {
   const messages: ModelMessage[] = [];
 
@@ -148,8 +155,18 @@ You operate in two modes:
 2. **Task mode**: When context is already set (e.g. invoice filling with uploaded files), execute the task immediately without asking unnecessary questions.
 
 Both modes use the same conversation interface. Be concise, practical, and action-oriented. Respond in the same language the user writes in.
+${
+  connectorInfo
+    ? `
+## Connected System
 
-You have access to NetSuite tools to search and retrieve data. Use them when the user asks about customers, items, invoices, or other NetSuite records.
+You are connected to a **${connectorInfo.type}** instance named **"${connectorInfo.name}"**${connectorInfo.accountId ? ` (Account ID: ${connectorInfo.accountId})` : ""}.
+You have access to tools to search and retrieve data from this connector. Use them when the user asks about customers, items, invoices, or other records.`
+    : `
+## No Connector
+
+No connector is configured for this conversation. If the user asks to search or retrieve data, let them know they need to select a connector first using the connector picker in the header.`
+}
 
 ## Action Buttons
 
