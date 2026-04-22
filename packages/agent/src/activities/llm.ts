@@ -255,43 +255,48 @@ export async function executeTool(
   if (!KNOWN_TOOLS.has(toolName)) {
     return { error: `Unknown tool: ${toolName}` };
   }
-  // Let transient errors (network, 5xx) throw so Temporal retries
   const query = typeof args.query === "string" ? args.query : "";
   const limit = typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
   const q = encodeURIComponent(query);
 
-  switch (toolName) {
-    case "search_customers": {
-      const path = `/record/v1/customer?q=${q}&limit=${limit}`;
-      const res = await netsuiteGet(path, credentials);
-      const data = res.data as { items?: unknown[]; hasMore?: boolean };
-      return {
-        summary: `Found ${data.items?.length ?? 0} customer(s) matching "${query}"`,
-        items: data.items ?? [],
-        hasMore: data.hasMore ?? false,
-      };
+  try {
+    switch (toolName) {
+      case "search_customers": {
+        const path = `/record/v1/customer?q=${q}&limit=${limit}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+        return {
+          summary: `Found ${data.items?.length ?? 0} customer(s) matching "${query}"`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
+        };
+      }
+      case "search_items": {
+        const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+        return {
+          summary: `Found ${data.items?.length ?? 0} item(s) matching "${query}"`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
+        };
+      }
+      case "search_invoices": {
+        const path = `/record/v1/invoice?q=${q}&limit=${limit}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+        return {
+          summary: `Found ${data.items?.length ?? 0} invoice(s) matching "${query}"`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
+        };
+      }
+      default:
+        return { error: `Unknown tool: ${toolName}` };
     }
-    case "search_items": {
-      const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}`;
-      const res = await netsuiteGet(path, credentials);
-      const data = res.data as { items?: unknown[]; hasMore?: boolean };
-      return {
-        summary: `Found ${data.items?.length ?? 0} item(s) matching "${query}"`,
-        items: data.items ?? [],
-        hasMore: data.hasMore ?? false,
-      };
-    }
-    case "search_invoices": {
-      const path = `/record/v1/invoice?q=${q}&limit=${limit}`;
-      const res = await netsuiteGet(path, credentials);
-      const data = res.data as { items?: unknown[]; hasMore?: boolean };
-      return {
-        summary: `Found ${data.items?.length ?? 0} invoice(s) matching "${query}"`,
-        items: data.items ?? [],
-        hasMore: data.hasMore ?? false,
-      };
-    }
-    default:
-      return { error: `Unknown tool: ${toolName}` };
+  } catch (err) {
+    return {
+      error: `${toolName} failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
