@@ -111,7 +111,7 @@ function recordLabel(type: string): string {
 const DEFAULT_SEARCH_FIELDS: Record<string, string> = {
   customer: "companyName",
   vendor: "companyName",
-  inventoryItem: "displayName",
+  inventoryItem: "itemId",
   purchaseOrder: "tranId",
   invoice: "tranId",
   vendorBill: "tranId",
