@@ -42,6 +42,14 @@ type UserMessageSignal =
       persisted?: boolean;
     };
 
+type PendingWriteOp = {
+  tool: string;
+  toolCallId: string;
+  args: Record<string, unknown>;
+};
+
+const WRITE_TOOLS = new Set(["create_invoice", "create_vendor_bill"]);
+
 export const userMessageSignal =
   defineSignal<[UserMessageSignal]>("userMessage");
 export const cancelSignal = defineSignal("cancel");
@@ -66,6 +74,7 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
   let status: "idle" | "thinking" | "tool_running" = "idle";
   let cancelled = false;
   let titleSet = history.some((m) => m.role === "user");
+  let pendingWrite: PendingWriteOp | null = null;
 
   setHandler(userMessageSignal, (msg) => {
     pendingMessages.push(
@@ -122,6 +131,34 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       titleSet = true;
     }
 
+    // Handle pending write confirmation
+    if (pendingWrite) {
+      const confirmed =
+        /confirm|yes|确认|同意|proceed|go ahead/i.test(userMsg.content);
+      const op = pendingWrite;
+      pendingWrite = null;
+
+      if (confirmed) {
+        status = "tool_running";
+        await executeAndSaveToolResult(sessionId, history, op);
+        // Continue to LLM loop so it can respond with the result
+      } else {
+        const cancelResult = JSON.stringify({
+          tool: op.tool,
+          toolCallId: op.toolCallId,
+          args: op.args,
+          result: { summary: "Operation cancelled by user." },
+        });
+        const saved = await saveMessage(sessionId, "tool", cancelResult);
+        history.push({
+          id: saved.id,
+          role: "tool",
+          content: cancelResult,
+          ts: saved.ts,
+        });
+      }
+    }
+
     const connector = await loadConnector(sessionId);
     const connectorInfo = connector
       ? {
@@ -168,6 +205,33 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       if (response.type === "tool_call") {
         status = "tool_running";
 
+        // Write tools require user confirmation
+        if (WRITE_TOOLS.has(response.tool)) {
+          pendingWrite = {
+            tool: response.tool,
+            toolCallId: response.toolCallId,
+            args: response.args,
+          };
+
+          const toolLabel = response.tool.replace(/_/g, " ");
+          const argsPreview = JSON.stringify(response.args, null, 2);
+          const confirmMsg = `I'm about to execute **${toolLabel}** with the following details:\n\n\`\`\`json\n${argsPreview}\n\`\`\`\n\nPlease confirm to proceed.\n\n<!-- actions:[{"label":"Confirm","message":"Confirmed, please proceed."},{"label":"Cancel","message":"Cancel this operation."}] -->`;
+
+          const saved = await saveMessage(
+            sessionId,
+            "assistant",
+            confirmMsg,
+          );
+          history.push({
+            id: saved.id,
+            role: "assistant",
+            content: confirmMsg,
+            ts: saved.ts,
+          });
+          break;
+        }
+
+        // Read tools execute immediately
         const pendingContent = JSON.stringify({
           tool: response.tool,
           toolCallId: response.toolCallId,
@@ -216,4 +280,47 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       await continueAsNew<typeof agentChatWorkflow>(sessionId);
     }
   }
+}
+
+async function executeAndSaveToolResult(
+  sessionId: string,
+  history: ChatMessage[],
+  op: PendingWriteOp,
+) {
+  const connector = await loadConnector(sessionId);
+
+  const pendingContent = JSON.stringify({
+    tool: op.tool,
+    toolCallId: op.toolCallId,
+    args: op.args,
+  });
+  await saveMessage(sessionId, "tool", pendingContent);
+
+  let result: unknown;
+  if (!connector) {
+    result = { error: "No connector configured for this chat session." };
+  } else {
+    try {
+      result = await executeTool(op.tool, op.args, connector.credentials);
+    } catch (err) {
+      result = {
+        error: `Tool failed: ${op.tool}`,
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  const toolContent = JSON.stringify({
+    tool: op.tool,
+    toolCallId: op.toolCallId,
+    args: op.args,
+    result,
+  });
+  const saved = await saveMessage(sessionId, "tool", toolContent);
+  history.push({
+    id: saved.id,
+    role: "tool",
+    content: toolContent,
+    ts: saved.ts,
+  });
 }
