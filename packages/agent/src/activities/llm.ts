@@ -124,8 +124,10 @@ const SUITEQL_CONFIG: Record<
     searchField: "companyName",
   },
   inventoryItem: {
-    table: "inventoryItem i LEFT JOIN inventoryNumber n ON n.item = i.id",
-    fields: "i.id, i.itemId, i.salesDescription, n.id as lotId, n.inventoryNumber as lotNumber",
+    table:
+      "inventoryItem i LEFT JOIN inventoryBalance b ON b.item = i.id AND b.quantityOnHand > 0",
+    fields:
+      "i.id, i.itemId, i.salesDescription, b.inventoryNumber as lotId, b.quantityOnHand, b.location",
     searchField: "i.itemId",
   },
   purchaseOrder: {
@@ -277,15 +279,14 @@ When PO files are uploaded or the user asks to create an invoice:
 
 After searching for items, present results in a markdown table like this:
 
-| PO Item | Qty | Price | NetSuite Match | Lot | Status |
-|---------|-----|-------|---------------|-----|--------|
-| DEWARS WHITE LABEL | 10 | $25.00 | DEWARS WHITE LABEL 1L (ID: 998) | SBLE7242 (lot: 4720) | ✅ Found |
-| ABSOLUT VODKA | 5 | $30.00 | ABSOLUT VODKA 700ML (ID: 256) | SBLF1898 (lot: 5568) | ✅ Found |
-| MAKERS MARK BOURBON | 3 | $45.00 | — | — | ❌ Not found |
+| PO Item | Qty | Price | NetSuite Match | Lot (ID) | Stock | Status |
+|---------|-----|-------|---------------|----------|-------|--------|
+| MACALLAN 12YO | 10 | $100 | MACALLAN 12YO SHERRY OAK (ID: 1744) | 5741 | 210 | ✅ Ready |
+| MAKERS MARK | 3 | $45 | MAKERS MARK BOURBON (ID: 1828) | — | 0 | ❌ No stock |
 
-- ✅ **Found**: Exact or confident match — will be used for invoice
+- ✅ **Ready**: Item matched with available stock and lot — will be used for invoice
+- ⚠️ **No stock**: Item found but no inventory available — cannot include in invoice
 - ❌ **Not found**: No match in NetSuite — user needs to resolve
-- ⚠️ **Multiple matches**: Ambiguous — ask user to pick the correct one
 
 Always show this table before proceeding. Use action buttons to let the user confirm or request changes.`
     : `
