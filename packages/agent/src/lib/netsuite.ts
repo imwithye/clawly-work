@@ -26,3 +26,18 @@ export async function netsuiteGet(
   const res = await client.request({ method: "GET", path });
   return { data: res.data, statusCode: res.statusCode };
 }
+
+export async function netsuitePost(
+  path: string,
+  body: unknown,
+  credentials: NetsuiteCredentials,
+): Promise<{ data: unknown; statusCode: number; headers: unknown }> {
+  const client = createClient(credentials);
+  const res = await client.request({
+    method: "POST",
+    path,
+    body: JSON.stringify(body),
+    heads: { "Content-Type": "application/json" },
+  });
+  return { data: res.data, statusCode: res.statusCode, headers: res.headers };
+}

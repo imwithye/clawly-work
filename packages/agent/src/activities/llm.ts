@@ -1,7 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
-import { type NetsuiteCredentials, netsuiteGet } from "../lib/netsuite";
+import {
+  type NetsuiteCredentials,
+  netsuiteGet,
+  netsuitePost,
+} from "../lib/netsuite";
 import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
 import type { ProcessedFile } from "./files";
@@ -163,7 +167,13 @@ ${
 ## Connected System
 
 You are connected to a **${connectorInfo.type}** instance named **"${connectorInfo.name}"**${connectorInfo.accountId ? ` (Account ID: ${connectorInfo.accountId})` : ""}.
-You have access to tools to search and retrieve data from this connector. Use them when the user asks about customers, items, invoices, or other records.`
+You have access to tools to search records, get record details, and create invoices. Use them when the user asks about customers, items, invoices, purchase orders, or other records.
+
+When creating an invoice from a PO:
+1. First get the PO details using get_record
+2. Search for matching customers and items in NetSuite
+3. Present a summary to the user for confirmation
+4. After confirmation, use create_invoice to create the invoice`
     : `
 ## No Connector
 
@@ -181,27 +191,20 @@ Example - after summarizing a PO for confirmation:
 
 Only include actions when explicit user confirmation or a clear choice is needed. Do not include actions in regular conversational responses.`,
     tools: {
-      search_customers: tool({
+      search_records: tool({
         description:
-          "Search NetSuite customers by name, email, or ID. Use when the user asks about customers, vendors, or contacts.",
+          "Search NetSuite records by type. Supports: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill. Use the q parameter with SuiteQL-style conditions like: companyName CONTAIN \"test\".",
         inputSchema: z.object({
-          query: z
-            .string()
-            .describe("Search term to match against customer name or email"),
-          limit: z
-            .number()
-            .optional()
-            .describe("Max results to return (default 20)"),
-        }),
-      }),
-      search_items: tool({
-        description:
-          "Search NetSuite items (products, services, inventory). Use when the user asks about items, products, SKUs, or inventory.",
-        inputSchema: z.object({
-          query: z
+          recordType: z
             .string()
             .describe(
-              "Search term to match against item name, displayName, or itemId",
+              "NetSuite record type: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill",
+            ),
+          q: z
+            .string()
+            .optional()
+            .describe(
+              'SuiteQL-style filter condition, e.g. companyName CONTAIN "Acme" OR entityId IS "C-123". Omit to list all.',
             ),
           limit: z
             .number()
@@ -209,19 +212,78 @@ Only include actions when explicit user confirmation or a clear choice is needed
             .describe("Max results to return (default 20)"),
         }),
       }),
-      search_invoices: tool({
+      get_record: tool({
         description:
-          "Search NetSuite invoices by invoice number, customer name, or date range. Use when the user asks about invoices or bills.",
+          "Get a specific NetSuite record by type and internal ID. Returns full record details including sublists (line items, addresses, etc). Use expandSubResources to include sublists.",
         inputSchema: z.object({
-          query: z
+          recordType: z
             .string()
             .describe(
-              "Search term to match against invoice number or customer name",
+              "NetSuite record type: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill",
             ),
-          limit: z
-            .number()
+          id: z.string().describe("Internal ID of the record"),
+          expandSubResources: z
+            .boolean()
             .optional()
-            .describe("Max results to return (default 20)"),
+            .describe(
+              "Include sublists (line items, addresses, etc) inline. Default true.",
+            ),
+        }),
+      }),
+      create_invoice: tool({
+        description:
+          "Create a new invoice in NetSuite. Requires customer entity ID and at least one line item. Each line item needs an item ID, quantity, and optionally a rate/amount.",
+        inputSchema: z.object({
+          entity: z
+            .string()
+            .describe("Internal ID of the customer to invoice"),
+          tranDate: z
+            .string()
+            .optional()
+            .describe("Transaction date in YYYY-MM-DD format"),
+          memo: z.string().optional().describe("Invoice memo/description"),
+          items: z
+            .array(
+              z.object({
+                item: z.string().describe("Internal ID of the item"),
+                quantity: z.number().describe("Quantity"),
+                rate: z.number().optional().describe("Unit price"),
+                amount: z.number().optional().describe("Line total amount"),
+                description: z
+                  .string()
+                  .optional()
+                  .describe("Line description"),
+              }),
+            )
+            .describe("Invoice line items"),
+        }),
+      }),
+      create_vendor_bill: tool({
+        description:
+          "Create a vendor bill (purchase invoice) in NetSuite. Requires vendor entity ID and at least one line item.",
+        inputSchema: z.object({
+          entity: z
+            .string()
+            .describe("Internal ID of the vendor"),
+          tranDate: z
+            .string()
+            .optional()
+            .describe("Transaction date in YYYY-MM-DD format"),
+          memo: z.string().optional().describe("Bill memo/description"),
+          items: z
+            .array(
+              z.object({
+                item: z.string().describe("Internal ID of the item"),
+                quantity: z.number().describe("Quantity"),
+                rate: z.number().optional().describe("Unit price"),
+                amount: z.number().optional().describe("Line total amount"),
+                description: z
+                  .string()
+                  .optional()
+                  .describe("Line description"),
+              }),
+            )
+            .describe("Bill line items"),
         }),
       }),
     },
@@ -242,9 +304,10 @@ Only include actions when explicit user confirmation or a clear choice is needed
 }
 
 const KNOWN_TOOLS = new Set([
-  "search_customers",
-  "search_items",
-  "search_invoices",
+  "search_records",
+  "get_record",
+  "create_invoice",
+  "create_vendor_bill",
 ]);
 
 export async function executeTool(
@@ -255,46 +318,95 @@ export async function executeTool(
   if (!KNOWN_TOOLS.has(toolName)) {
     return { error: `Unknown tool: ${toolName}` };
   }
-  const query = typeof args.query === "string" ? args.query : "";
-  const limit = typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
 
   try {
     switch (toolName) {
-      case "search_customers": {
-        const q = query
-          ? `companyName CONTAIN "${query}" OR entityId CONTAIN "${query}"`
-          : undefined;
-        const path = `record/v1/customer?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+      case "search_records": {
+        const recordType =
+          typeof args.recordType === "string" ? args.recordType : "customer";
+        const q = typeof args.q === "string" ? args.q : undefined;
+        const limit =
+          typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
+        const path = `record/v1/${recordType}?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
         const res = await netsuiteGet(path, credentials);
         const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
-          summary: `Found ${data.items?.length ?? 0} customer(s)${query ? ` matching "${query}"` : ""}`,
+          summary: `Found ${data.items?.length ?? 0} ${recordType} record(s)`,
           items: data.items ?? [],
           hasMore: data.hasMore ?? false,
         };
       }
-      case "search_items": {
-        const q = query
-          ? `displayName CONTAIN "${query}" OR itemId CONTAIN "${query}"`
-          : undefined;
-        const path = `record/v1/inventoryItem?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+      case "get_record": {
+        const recordType =
+          typeof args.recordType === "string" ? args.recordType : "";
+        const id = typeof args.id === "string" ? args.id : "";
+        const expand = args.expandSubResources !== false;
+        const path = `record/v1/${recordType}/${id}${expand ? "?expandSubResources=true" : ""}`;
         const res = await netsuiteGet(path, credentials);
-        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+        return { summary: `${recordType} #${id}`, record: res.data };
+      }
+      case "create_invoice": {
+        const entity = typeof args.entity === "string" ? args.entity : "";
+        const items = Array.isArray(args.items) ? args.items : [];
+        const body: Record<string, unknown> = {
+          entity: { id: entity },
+          item: {
+            items: items.map((li: Record<string, unknown>) => ({
+              item: { id: String(li.item) },
+              quantity: Number(li.quantity),
+              ...(li.rate != null ? { rate: Number(li.rate) } : {}),
+              ...(li.amount != null ? { amount: Number(li.amount) } : {}),
+              ...(li.description ? { description: String(li.description) } : {}),
+            })),
+          },
+        };
+        if (args.tranDate) body.tranDate = String(args.tranDate);
+        if (args.memo) body.memo = String(args.memo);
+
+        const res = await netsuitePost(
+          "record/v1/invoice",
+          body,
+          credentials,
+        );
+        const headers = res.headers as Record<string, string>;
+        const location = headers?.location ?? "";
+        const createdId = location.split("/").pop() ?? "";
         return {
-          summary: `Found ${data.items?.length ?? 0} item(s)${query ? ` matching "${query}"` : ""}`,
-          items: data.items ?? [],
-          hasMore: data.hasMore ?? false,
+          summary: `Invoice created${createdId ? ` (ID: ${createdId})` : ""}`,
+          id: createdId,
+          statusCode: res.statusCode,
         };
       }
-      case "search_invoices": {
-        const q = query ? `tranId CONTAIN "${query}"` : undefined;
-        const path = `record/v1/invoice?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-        const res = await netsuiteGet(path, credentials);
-        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+      case "create_vendor_bill": {
+        const entity = typeof args.entity === "string" ? args.entity : "";
+        const items = Array.isArray(args.items) ? args.items : [];
+        const body: Record<string, unknown> = {
+          entity: { id: entity },
+          item: {
+            items: items.map((li: Record<string, unknown>) => ({
+              item: { id: String(li.item) },
+              quantity: Number(li.quantity),
+              ...(li.rate != null ? { rate: Number(li.rate) } : {}),
+              ...(li.amount != null ? { amount: Number(li.amount) } : {}),
+              ...(li.description ? { description: String(li.description) } : {}),
+            })),
+          },
+        };
+        if (args.tranDate) body.tranDate = String(args.tranDate);
+        if (args.memo) body.memo = String(args.memo);
+
+        const res = await netsuitePost(
+          "record/v1/vendorBill",
+          body,
+          credentials,
+        );
+        const headers = res.headers as Record<string, string>;
+        const location = headers?.location ?? "";
+        const createdId = location.split("/").pop() ?? "";
         return {
-          summary: `Found ${data.items?.length ?? 0} invoice(s)${query ? ` matching "${query}"` : ""}`,
-          items: data.items ?? [],
-          hasMore: data.hasMore ?? false,
+          summary: `Vendor bill created${createdId ? ` (ID: ${createdId})` : ""}`,
+          id: createdId,
+          statusCode: res.statusCode,
         };
       }
       default:
