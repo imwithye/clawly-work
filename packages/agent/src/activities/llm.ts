@@ -91,14 +91,22 @@ export type ConnectorInfo = {
   accountId?: string;
 } | null;
 
-const recordTypeEnum = z.enum([
-  "customer",
-  "vendor",
-  "inventoryItem",
-  "purchaseOrder",
-  "invoice",
-  "vendorBill",
-]);
+const RECORD_TYPES = {
+  customer: "Customer",
+  vendor: "Vendor",
+  inventoryItem: "Inventory Item",
+  purchaseOrder: "Purchase Order",
+  invoice: "Invoice",
+  vendorBill: "Vendor Bill",
+} as const;
+
+const recordTypeEnum = z.enum(
+  Object.keys(RECORD_TYPES) as [string, ...string[]],
+);
+
+function recordLabel(type: string): string {
+  return RECORD_TYPES[type as keyof typeof RECORD_TYPES] ?? type;
+}
 
 const transactionInputSchema = z.object({
   entity: z.string().describe("Internal ID of the entity (customer or vendor)"),
@@ -221,15 +229,22 @@ Example - after summarizing a PO for confirmation:
 Only include actions when explicit user confirmation or a clear choice is needed. Do not include actions in regular conversational responses.`,
     tools: {
       search_records: tool({
-        description:
-          "Search NetSuite records by type. Use the q parameter with SuiteQL-style conditions like: companyName CONTAIN \"test\".",
+        description: `Search NetSuite records by type. Use the q parameter with SuiteQL-style conditions.
+Field names per record type:
+- customer: companyName, email, entityId, phone
+- vendor: companyName, email, entityId
+- inventoryItem: itemId, displayName, description
+- purchaseOrder: tranId, entity, tranDate, status
+- invoice: tranId, entity, tranDate, total, status
+- vendorBill: tranId, entity, tranDate, total
+Example q values: companyName CONTAIN "Acme", tranId IS "PO-1234", itemId CONTAIN "SKU"`,
         inputSchema: z.object({
           recordType: recordTypeEnum,
           q: z
             .string()
             .optional()
             .describe(
-              'SuiteQL-style filter condition, e.g. companyName CONTAIN "Acme" OR entityId IS "C-123". Omit to list all.',
+              "SuiteQL-style filter condition using correct field names for the record type. Omit to list all.",
             ),
           limit: z
             .number()
@@ -344,7 +359,7 @@ export async function executeTool(
         const res = await netsuiteGet(path, creds);
         const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
-          summary: `Found ${data.items?.length ?? 0} ${recordType} record(s)`,
+          summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
           items: data.items ?? [],
           hasMore: data.hasMore ?? false,
         };
@@ -356,7 +371,7 @@ export async function executeTool(
         const expand = args.expandSubResources !== false;
         const path = `record/v1/${recordType}/${id}${expand ? "?expandSubResources=true" : ""}`;
         const res = await netsuiteGet(path, creds);
-        return { summary: `${recordType} #${id}`, record: res.data };
+        return { summary: `${recordLabel(recordType)} #${id}`, record: res.data };
       }
       case "create_invoice":
         return createTransaction("invoice", "Invoice", args, creds);
