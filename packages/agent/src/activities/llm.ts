@@ -108,6 +108,19 @@ function recordLabel(type: string): string {
   return RECORD_TYPES[type as keyof typeof RECORD_TYPES] ?? type;
 }
 
+const DEFAULT_SEARCH_FIELDS: Record<string, string> = {
+  customer: "companyName",
+  vendor: "companyName",
+  inventoryItem: "displayName",
+  purchaseOrder: "tranId",
+  invoice: "tranId",
+  vendorBill: "tranId",
+};
+
+function defaultSearchField(recordType: string): string {
+  return DEFAULT_SEARCH_FIELDS[recordType] ?? "id";
+}
+
 const transactionInputSchema = z.object({
   entity: z.string().describe("Internal ID of the entity (customer or vendor)"),
   tranDate: z
@@ -229,7 +242,7 @@ Example - after summarizing a PO for confirmation:
 Only include actions when explicit user confirmation or a clear choice is needed. Do not include actions in regular conversational responses.`,
     tools: {
       search_records: tool({
-        description: `Search NetSuite records by type. Use the q parameter with SuiteQL-style conditions.
+        description: `Search NetSuite records by type. Use either "q" for exact SuiteQL conditions, or "keywords" for fuzzy best-effort matching (preferred for item lookups from PO text).
 Field names per record type:
 - customer: companyName, email, entityId, phone
 - vendor: companyName, email, entityId
@@ -237,14 +250,26 @@ Field names per record type:
 - purchaseOrder: tranId, entity, tranDate, status
 - invoice: tranId, entity, tranDate, total, status
 - vendorBill: tranId, entity, tranDate, total
-Example q values: companyName CONTAIN "Acme", tranId IS "PO-1234", itemId CONTAIN "SKU"`,
+When matching items from PO text, prefer "keywords" + "searchField" — it splits words and matches in any order.`,
         inputSchema: z.object({
           recordType: recordTypeEnum,
           q: z
             .string()
             .optional()
             .describe(
-              "SuiteQL-style filter condition using correct field names for the record type. Omit to list all.",
+              "SuiteQL-style filter condition, e.g. companyName CONTAIN \"Acme\". Use for exact queries.",
+            ),
+          keywords: z
+            .string()
+            .optional()
+            .describe(
+              "Space-separated keywords for fuzzy matching. Each word is matched independently (AND). Preferred for item lookups from PO text where word order may differ.",
+            ),
+          searchField: z
+            .string()
+            .optional()
+            .describe(
+              "Field to search keywords against (default: displayName for inventoryItem, companyName for customer/vendor, tranId for transactions).",
             ),
           limit: z
             .number()
@@ -352,9 +377,26 @@ export async function executeTool(
       case "search_records": {
         const recordType =
           typeof args.recordType === "string" ? args.recordType : "customer";
-        const q = typeof args.q === "string" ? args.q : undefined;
         const limit =
           typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
+
+        let q: string | undefined;
+        if (typeof args.q === "string") {
+          q = args.q;
+        } else if (typeof args.keywords === "string" && args.keywords.trim()) {
+          const field =
+            typeof args.searchField === "string"
+              ? args.searchField
+              : defaultSearchField(recordType);
+          const words = args.keywords
+            .trim()
+            .split(/\s+/)
+            .filter((w: string) => w.length > 0);
+          q = words
+            .map((w: string) => `${field} CONTAIN "${w}"`)
+            .join(" AND ");
+        }
+
         const path = `record/v1/${recordType}?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
         const res = await netsuiteGet(path, creds);
         const data = res.data as { items?: unknown[]; hasMore?: boolean };
