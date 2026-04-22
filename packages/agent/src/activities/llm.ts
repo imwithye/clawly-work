@@ -307,15 +307,18 @@ async function createTransaction(
   };
   if (args.tranDate) body.tranDate = String(args.tranDate);
   if (args.memo) body.memo = String(args.memo);
+  // Create as Pending Approval so it requires human review in NetSuite
+  body.approvalStatus = { id: "1" };
 
   const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
   const headers = res.headers as Record<string, string>;
   const location = headers?.location ?? "";
   const createdId = location.split("/").pop() ?? "";
   return {
-    summary: `${label} created${createdId ? ` (ID: ${createdId})` : ""}`,
+    summary: `${label} created as Pending Approval${createdId ? ` (ID: ${createdId})` : ""}`,
     id: createdId,
     statusCode: res.statusCode,
+    approvalStatus: "Pending Approval",
   };
 }
 
