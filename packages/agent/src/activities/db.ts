@@ -46,28 +46,11 @@ export async function loadHistory(
   }));
 }
 
-export async function loadConnectorCredentials(
-  sessionId: string,
-): Promise<Record<string, string> | null> {
-  const [chat] = await db
-    .select({ connectorId: chats.connectorId })
-    .from(chats)
-    .where(eq(chats.id, sessionId));
-
-  if (!chat?.connectorId) return null;
-
-  const [connector] = await db
-    .select({ credentials: connectors.credentials })
-    .from(connectors)
-    .where(eq(connectors.id, chat.connectorId));
-
-  if (!connector) return null;
-  return connector.credentials as Record<string, string>;
-}
-
-export async function loadConnectorInfo(
-  sessionId: string,
-): Promise<{ name: string; type: string; accountId?: string } | null> {
+export async function loadConnector(sessionId: string): Promise<{
+  name: string;
+  type: string;
+  credentials: Record<string, string>;
+} | null> {
   const [chat] = await db
     .select({ connectorId: chats.connectorId })
     .from(chats)
@@ -85,10 +68,9 @@ export async function loadConnectorInfo(
     .where(eq(connectors.id, chat.connectorId));
 
   if (!connector) return null;
-  const creds = connector.credentials as Record<string, string>;
   return {
     name: connector.name,
     type: connector.type,
-    accountId: creds.accountId,
+    credentials: connector.credentials as Record<string, string>,
   };
 }

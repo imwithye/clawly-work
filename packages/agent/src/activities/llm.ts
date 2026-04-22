@@ -91,6 +91,35 @@ export type ConnectorInfo = {
   accountId?: string;
 } | null;
 
+const recordTypeEnum = z.enum([
+  "customer",
+  "vendor",
+  "inventoryItem",
+  "purchaseOrder",
+  "invoice",
+  "vendorBill",
+]);
+
+const transactionInputSchema = z.object({
+  entity: z.string().describe("Internal ID of the entity (customer or vendor)"),
+  tranDate: z
+    .string()
+    .optional()
+    .describe("Transaction date in YYYY-MM-DD format"),
+  memo: z.string().optional().describe("Memo/description"),
+  items: z
+    .array(
+      z.object({
+        item: z.string().describe("Internal ID of the item"),
+        quantity: z.number().describe("Quantity"),
+        rate: z.number().optional().describe("Unit price"),
+        amount: z.number().optional().describe("Line total amount"),
+        description: z.string().optional().describe("Line description"),
+      }),
+    )
+    .describe("Line items"),
+});
+
 export async function callLLM(
   history: ChatMessage[],
   fileContext?: ProcessedFile[],
@@ -193,13 +222,9 @@ Only include actions when explicit user confirmation or a clear choice is needed
     tools: {
       search_records: tool({
         description:
-          "Search NetSuite records by type. Supports: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill. Use the q parameter with SuiteQL-style conditions like: companyName CONTAIN \"test\".",
+          "Search NetSuite records by type. Use the q parameter with SuiteQL-style conditions like: companyName CONTAIN \"test\".",
         inputSchema: z.object({
-          recordType: z
-            .string()
-            .describe(
-              "NetSuite record type: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill",
-            ),
+          recordType: recordTypeEnum,
           q: z
             .string()
             .optional()
@@ -214,13 +239,9 @@ Only include actions when explicit user confirmation or a clear choice is needed
       }),
       get_record: tool({
         description:
-          "Get a specific NetSuite record by type and internal ID. Returns full record details including sublists (line items, addresses, etc). Use expandSubResources to include sublists.",
+          "Get a specific NetSuite record by type and internal ID. Returns full record details including sublists (line items, addresses, etc).",
         inputSchema: z.object({
-          recordType: z
-            .string()
-            .describe(
-              "NetSuite record type: customer, vendor, inventoryItem, purchaseOrder, invoice, vendorBill",
-            ),
+          recordType: recordTypeEnum,
           id: z.string().describe("Internal ID of the record"),
           expandSubResources: z
             .boolean()
@@ -232,59 +253,13 @@ Only include actions when explicit user confirmation or a clear choice is needed
       }),
       create_invoice: tool({
         description:
-          "Create a new invoice in NetSuite. Requires customer entity ID and at least one line item. Each line item needs an item ID, quantity, and optionally a rate/amount.",
-        inputSchema: z.object({
-          entity: z
-            .string()
-            .describe("Internal ID of the customer to invoice"),
-          tranDate: z
-            .string()
-            .optional()
-            .describe("Transaction date in YYYY-MM-DD format"),
-          memo: z.string().optional().describe("Invoice memo/description"),
-          items: z
-            .array(
-              z.object({
-                item: z.string().describe("Internal ID of the item"),
-                quantity: z.number().describe("Quantity"),
-                rate: z.number().optional().describe("Unit price"),
-                amount: z.number().optional().describe("Line total amount"),
-                description: z
-                  .string()
-                  .optional()
-                  .describe("Line description"),
-              }),
-            )
-            .describe("Invoice line items"),
-        }),
+          "Create a new invoice in NetSuite. Requires customer entity ID and at least one line item.",
+        inputSchema: transactionInputSchema.describe("Invoice data"),
       }),
       create_vendor_bill: tool({
         description:
           "Create a vendor bill (purchase invoice) in NetSuite. Requires vendor entity ID and at least one line item.",
-        inputSchema: z.object({
-          entity: z
-            .string()
-            .describe("Internal ID of the vendor"),
-          tranDate: z
-            .string()
-            .optional()
-            .describe("Transaction date in YYYY-MM-DD format"),
-          memo: z.string().optional().describe("Bill memo/description"),
-          items: z
-            .array(
-              z.object({
-                item: z.string().describe("Internal ID of the item"),
-                quantity: z.number().describe("Quantity"),
-                rate: z.number().optional().describe("Unit price"),
-                amount: z.number().optional().describe("Line total amount"),
-                description: z
-                  .string()
-                  .optional()
-                  .describe("Line description"),
-              }),
-            )
-            .describe("Bill line items"),
-        }),
+        inputSchema: transactionInputSchema.describe("Vendor bill data"),
       }),
     },
     messages,
@@ -310,14 +285,49 @@ const KNOWN_TOOLS = new Set([
   "create_vendor_bill",
 ]);
 
+async function createTransaction(
+  recordType: string,
+  label: string,
+  args: Record<string, unknown>,
+  credentials: NetsuiteCredentials,
+) {
+  const entity = typeof args.entity === "string" ? args.entity : "";
+  const items = Array.isArray(args.items) ? args.items : [];
+  const body: Record<string, unknown> = {
+    entity: { id: entity },
+    item: {
+      items: items.map((li: Record<string, unknown>) => ({
+        item: { id: String(li.item) },
+        quantity: Number(li.quantity),
+        ...(li.rate != null ? { rate: Number(li.rate) } : {}),
+        ...(li.amount != null ? { amount: Number(li.amount) } : {}),
+        ...(li.description ? { description: String(li.description) } : {}),
+      })),
+    },
+  };
+  if (args.tranDate) body.tranDate = String(args.tranDate);
+  if (args.memo) body.memo = String(args.memo);
+
+  const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
+  const headers = res.headers as Record<string, string>;
+  const location = headers?.location ?? "";
+  const createdId = location.split("/").pop() ?? "";
+  return {
+    summary: `${label} created${createdId ? ` (ID: ${createdId})` : ""}`,
+    id: createdId,
+    statusCode: res.statusCode,
+  };
+}
+
 export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
-  credentials: NetsuiteCredentials,
+  credentials: Record<string, string>,
 ): Promise<unknown> {
   if (!KNOWN_TOOLS.has(toolName)) {
     return { error: `Unknown tool: ${toolName}` };
   }
+  const creds = credentials as unknown as NetsuiteCredentials;
 
   try {
     switch (toolName) {
@@ -328,7 +338,7 @@ export async function executeTool(
         const limit =
           typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
         const path = `record/v1/${recordType}?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-        const res = await netsuiteGet(path, credentials);
+        const res = await netsuiteGet(path, creds);
         const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
           summary: `Found ${data.items?.length ?? 0} ${recordType} record(s)`,
@@ -342,73 +352,13 @@ export async function executeTool(
         const id = typeof args.id === "string" ? args.id : "";
         const expand = args.expandSubResources !== false;
         const path = `record/v1/${recordType}/${id}${expand ? "?expandSubResources=true" : ""}`;
-        const res = await netsuiteGet(path, credentials);
+        const res = await netsuiteGet(path, creds);
         return { summary: `${recordType} #${id}`, record: res.data };
       }
-      case "create_invoice": {
-        const entity = typeof args.entity === "string" ? args.entity : "";
-        const items = Array.isArray(args.items) ? args.items : [];
-        const body: Record<string, unknown> = {
-          entity: { id: entity },
-          item: {
-            items: items.map((li: Record<string, unknown>) => ({
-              item: { id: String(li.item) },
-              quantity: Number(li.quantity),
-              ...(li.rate != null ? { rate: Number(li.rate) } : {}),
-              ...(li.amount != null ? { amount: Number(li.amount) } : {}),
-              ...(li.description ? { description: String(li.description) } : {}),
-            })),
-          },
-        };
-        if (args.tranDate) body.tranDate = String(args.tranDate);
-        if (args.memo) body.memo = String(args.memo);
-
-        const res = await netsuitePost(
-          "record/v1/invoice",
-          body,
-          credentials,
-        );
-        const headers = res.headers as Record<string, string>;
-        const location = headers?.location ?? "";
-        const createdId = location.split("/").pop() ?? "";
-        return {
-          summary: `Invoice created${createdId ? ` (ID: ${createdId})` : ""}`,
-          id: createdId,
-          statusCode: res.statusCode,
-        };
-      }
-      case "create_vendor_bill": {
-        const entity = typeof args.entity === "string" ? args.entity : "";
-        const items = Array.isArray(args.items) ? args.items : [];
-        const body: Record<string, unknown> = {
-          entity: { id: entity },
-          item: {
-            items: items.map((li: Record<string, unknown>) => ({
-              item: { id: String(li.item) },
-              quantity: Number(li.quantity),
-              ...(li.rate != null ? { rate: Number(li.rate) } : {}),
-              ...(li.amount != null ? { amount: Number(li.amount) } : {}),
-              ...(li.description ? { description: String(li.description) } : {}),
-            })),
-          },
-        };
-        if (args.tranDate) body.tranDate = String(args.tranDate);
-        if (args.memo) body.memo = String(args.memo);
-
-        const res = await netsuitePost(
-          "record/v1/vendorBill",
-          body,
-          credentials,
-        );
-        const headers = res.headers as Record<string, string>;
-        const location = headers?.location ?? "";
-        const createdId = location.split("/").pop() ?? "";
-        return {
-          summary: `Vendor bill created${createdId ? ` (ID: ${createdId})` : ""}`,
-          id: createdId,
-          statusCode: res.statusCode,
-        };
-      }
+      case "create_invoice":
+        return createTransaction("invoice", "Invoice", args, creds);
+      case "create_vendor_bill":
+        return createTransaction("vendorBill", "Vendor bill", args, creds);
       default:
         return { error: `Unknown tool: ${toolName}` };
     }

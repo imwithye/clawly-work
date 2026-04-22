@@ -4,7 +4,13 @@
       "Bash(pnpm build:*)",
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
-      "Bash(pnpm check:*)"
+      "Bash(pnpm check:*)",
+      "WebFetch(domain:nanonets.com)",
+      "WebFetch(domain:system.netsuite.com)",
+      "WebSearch",
+      "WebFetch(domain:www.brokenrubik.com)",
+      "WebFetch(domain:netsuiteprofessionals.com)",
+      "WebFetch(domain:medium.com)"
     ]
   }
 }

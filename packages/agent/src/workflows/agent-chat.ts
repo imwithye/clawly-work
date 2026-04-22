@@ -10,7 +10,6 @@ import {
 import type * as dbActivities from "../activities/db";
 import type * as fileActivities from "../activities/files";
 import type * as llmActivities from "../activities/llm";
-import type { NetsuiteCredentials } from "../lib/netsuite";
 
 const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
   startToCloseTimeout: "2 minutes",
@@ -22,16 +21,11 @@ const { processFiles } = proxyActivities<typeof fileActivities>({
   retry: { maximumAttempts: 2 },
 });
 
-const {
-  updateChatTitle,
-  saveMessage,
-  loadHistory,
-  loadConnectorCredentials,
-  loadConnectorInfo,
-} = proxyActivities<typeof dbActivities>({
-  startToCloseTimeout: "10 seconds",
-  retry: { maximumAttempts: 2 },
-});
+const { updateChatTitle, saveMessage, loadHistory, loadConnector } =
+  proxyActivities<typeof dbActivities>({
+    startToCloseTimeout: "10 seconds",
+    retry: { maximumAttempts: 2 },
+  });
 
 export type ChatMessage = {
   id?: number;
@@ -128,7 +122,14 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       titleSet = true;
     }
 
-    const connectorInfo = await loadConnectorInfo(sessionId);
+    const connector = await loadConnector(sessionId);
+    const connectorInfo = connector
+      ? {
+          name: connector.name,
+          type: connector.type,
+          accountId: connector.credentials.accountId,
+        }
+      : null;
 
     let turn = 0;
     while (turn++ < 10) {
@@ -167,7 +168,6 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       if (response.type === "tool_call") {
         status = "tool_running";
 
-        // Save pending tool message (no result) so UI shows loading
         const pendingContent = JSON.stringify({
           tool: response.tool,
           toolCallId: response.toolCallId,
@@ -176,10 +176,7 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
         await saveMessage(sessionId, "tool", pendingContent);
 
         let result: unknown;
-        const credentials = (await loadConnectorCredentials(
-          sessionId,
-        )) as NetsuiteCredentials | null;
-        if (!credentials) {
+        if (!connector) {
           result = {
             error: "No connector configured for this chat session.",
           };
@@ -188,7 +185,7 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
             result = await executeTool(
               response.tool,
               response.args,
-              credentials,
+              connector.credentials,
             );
           } catch (err) {
             result = {
@@ -198,7 +195,6 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
           }
         }
 
-        // Save completed tool message with result
         const toolContent = JSON.stringify({
           tool: response.tool,
           toolCallId: response.toolCallId,

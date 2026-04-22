@@ -7,6 +7,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -74,31 +75,26 @@ export default function ChatPage({
     }
   };
 
-  // Merge tool messages: if two tool messages share the same toolCallId,
-  // keep only the latest (the one with a result).
-  const displayMessages = messages.filter((msg, i) => {
-    if (msg.role !== "tool") return true;
-    try {
-      const parsed = JSON.parse(msg.content);
-      if (!parsed.toolCallId) return true;
-      // Check if a later message has the same toolCallId (with result)
-      const laterDuplicate = messages.find(
-        (other, j) =>
-          j > i &&
-          other.role === "tool" &&
-          (() => {
-            try {
-              return JSON.parse(other.content).toolCallId === parsed.toolCallId;
-            } catch {
-              return false;
-            }
-          })(),
-      );
-      return !laterDuplicate;
-    } catch {
-      return true;
+  const displayMessages = useMemo(() => {
+    // Build a map of toolCallId -> latest index to deduplicate pending/completed tool messages
+    const latestByCallId = new Map<string, number>();
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].role !== "tool") continue;
+      try {
+        const id = JSON.parse(messages[i].content).toolCallId;
+        if (id) latestByCallId.set(id, i);
+      } catch {}
     }
-  });
+    return messages.filter((msg, i) => {
+      if (msg.role !== "tool") return true;
+      try {
+        const id = JSON.parse(msg.content).toolCallId;
+        return !id || latestByCallId.get(id) === i;
+      } catch {
+        return true;
+      }
+    });
+  }, [messages]);
 
   const empty = !isLoading && messages.length === 0 && status === "idle";
 
