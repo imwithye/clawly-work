@@ -5,6 +5,7 @@ import {
   type NetsuiteCredentials,
   netsuiteGet,
   netsuitePost,
+  netsuiteSuiteQL,
 } from "../lib/netsuite";
 import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
@@ -108,14 +109,46 @@ function recordLabel(type: string): string {
   return RECORD_TYPES[type as keyof typeof RECORD_TYPES] ?? type;
 }
 
-// Ordered by priority — first field that works wins
-const SEARCH_FIELDS: Record<string, string[]> = {
-  customer: ["companyName", "entityId"],
-  vendor: ["companyName", "entityId"],
-  inventoryItem: ["itemId"],
-  purchaseOrder: ["tranId"],
-  invoice: ["tranId"],
-  vendorBill: ["tranId"],
+const SUITEQL_CONFIG: Record<
+  string,
+  { table: string; fields: string; searchField: string }
+> = {
+  customer: {
+    table: "customer",
+    fields: "id, entityId, companyName, email, phone",
+    searchField: "companyName",
+  },
+  vendor: {
+    table: "vendor",
+    fields: "id, entityId, companyName, email",
+    searchField: "companyName",
+  },
+  inventoryItem: {
+    table: "inventoryItem",
+    fields: "id, itemId, salesDescription",
+    searchField: "itemId",
+  },
+  purchaseOrder: {
+    table: "transaction",
+    fields: "id, tranId, tranDate, status, entity",
+    searchField: "tranId",
+  },
+  invoice: {
+    table: "transaction",
+    fields: "id, tranId, tranDate, total, status, entity",
+    searchField: "tranId",
+  },
+  vendorBill: {
+    table: "transaction",
+    fields: "id, tranId, tranDate, total, status, entity",
+    searchField: "tranId",
+  },
+};
+
+const TRANSACTION_TYPE_FILTER: Record<string, string> = {
+  purchaseOrder: "PurchOrd",
+  invoice: "CustInvc",
+  vendorBill: "VendBill",
 };
 
 const transactionInputSchema = z.object({
@@ -401,46 +434,37 @@ export async function executeTool(
         const keywords =
           typeof args.keywords === "string" ? args.keywords.trim() : "";
 
-        if (!keywords) {
-          const path = `record/v1/${recordType}?limit=${limit}`;
-          const res = await netsuiteGet(path, creds);
-          const data = res.data as { items?: unknown[]; hasMore?: boolean };
-          return {
-            summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
-            items: data.items ?? [],
-            hasMore: data.hasMore ?? false,
-          };
+        const config = SUITEQL_CONFIG[recordType];
+        if (!config) {
+          return { error: `Unsupported record type: ${recordType}` };
         }
 
-        const fields = SEARCH_FIELDS[recordType] ?? ["id"];
-        const words = keywords
-          .split(/\s+/)
-          .filter((w: string) => w.length > 0);
+        const conditions: string[] = [];
+        const txType = TRANSACTION_TYPE_FILTER[recordType];
+        if (txType) conditions.push(`type = '${txType}'`);
 
-        // Try each search field until one succeeds
-        for (const field of fields) {
-          const q = words
-            .map((w: string) => `${field} CONTAIN "${w}"`)
-            .join(" AND ");
-          try {
-            const path = `record/v1/${recordType}?limit=${limit}&q=${encodeURIComponent(q)}`;
-            const res = await netsuiteGet(path, creds);
-            const data = res.data as { items?: unknown[]; hasMore?: boolean };
-            return {
-              summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
-              items: data.items ?? [],
-              hasMore: data.hasMore ?? false,
-            };
-          } catch {
-            // Field not supported for this record type, try next
+        if (keywords) {
+          const words = keywords
+            .split(/\s+/)
+            .filter((w: string) => w.length > 0);
+          for (const w of words) {
+            conditions.push(
+              `${config.searchField} LIKE '%${w.replace(/'/g, "''")}%'`,
+            );
           }
         }
 
-        // All fields failed — return empty results instead of error
+        const where =
+          conditions.length > 0
+            ? ` WHERE ${conditions.join(" AND ")}`
+            : "";
+        const sql = `SELECT ${config.fields} FROM ${config.table}${where}`;
+
+        const res = await netsuiteSuiteQL(sql, creds, limit);
         return {
-          summary: `Found 0 ${recordLabel(recordType)} record(s)`,
-          items: [],
-          hasMore: false,
+          summary: `Found ${res.items.length} ${recordLabel(recordType)} record(s)`,
+          items: res.items,
+          hasMore: res.hasMore,
         };
       }
       case "get_record": {

@@ -27,6 +27,21 @@ export async function netsuiteGet(
   return { data: res.data, statusCode: res.statusCode };
 }
 
+export async function netsuiteSuiteQL(
+  sql: string,
+  credentials: NetsuiteCredentials,
+  limit = 20,
+  offset = 0,
+): Promise<{ items: unknown[]; hasMore: boolean }> {
+  const client = createClient(credentials);
+  const res = await client.query(sql, limit, offset);
+  const data = res as { items?: unknown[]; hasMore?: boolean };
+  return {
+    items: data.items ?? [],
+    hasMore: data.hasMore ?? false,
+  };
+}
+
 export async function netsuitePost(
   path: string,
   body: unknown,
