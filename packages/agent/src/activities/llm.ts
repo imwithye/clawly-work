@@ -249,7 +249,9 @@ ${
 You are connected to a **${connectorInfo.type}** instance named **"${connectorInfo.name}"**${connectorInfo.accountId ? ` (Account ID: ${connectorInfo.accountId})` : ""}.
 You have access to tools to search records, get record details, and create invoices. Use them when the user asks about customers, items, invoices, purchase orders, or other records.
 
-Important: The "vendor" record type may not be available. If searching for a vendor/supplier fails, search "customer" instead — in some NetSuite instances, vendors are stored as customer records.
+Important notes:
+- The "vendor" record type may not be available. If searching for a vendor/supplier fails, search "customer" instead — in some NetSuite instances, vendors are stored as customer records.
+- The default currency is **SGD** (Singapore Dollar). All prices and amounts are in SGD unless stated otherwise.
 
 When creating an invoice from a PO:
 1. Read the uploaded PO files to extract vendor/customer, items, quantities, prices
@@ -399,7 +401,7 @@ async function createTransaction(
   };
   if (args.tranDate) body.tranDate = String(args.tranDate);
   if (args.memo) body.memo = String(args.memo);
-  // Create as Pending Approval so it requires human review in NetSuite
+  body.currency = { id: "5" }; // SGD
   body.approvalStatus = { id: "1" };
 
   const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
