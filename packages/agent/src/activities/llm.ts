@@ -273,7 +273,7 @@ When PO files are uploaded or the user asks to create an invoice:
 
 **Step 4: Show matching table** — Present a summary table (see format below) showing every PO line item with its NetSuite match and selected lot number. Ask user to confirm.
 
-**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and all matched item IDs, quantities, rates, and lotNumber (the lotId from search results) from the PO.
+**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and ONLY items that have a lotId (stock available). Each item MUST include lotNumber (the lotId from search results). Do NOT include items without stock/lotId — they will cause errors.
 
 ## Matching Summary Format
 
@@ -399,23 +399,30 @@ async function createTransaction(
   credentials: NetsuiteCredentials,
 ) {
   const entity = typeof args.entity === "string" ? args.entity : "";
-  const items = Array.isArray(args.items) ? args.items : [];
+  const rawItems = Array.isArray(args.items) ? args.items : [];
+  // Filter out items without lotNumber — they'll fail for lot-tracked items
+  const validItems = (rawItems as Record<string, unknown>[]).filter(
+    (li) => li.lotNumber,
+  );
+  const skippedCount = rawItems.length - validItems.length;
+
+  if (validItems.length === 0) {
+    return {
+      error: `No items with valid lot numbers. ${skippedCount} item(s) skipped because they have no stock/lot available.`,
+    };
+  }
+
   const body: Record<string, unknown> = {
     entity: { id: entity },
     subsidiary: { id: "1" },
     location: { id: "2" },
     item: {
-      items: items.map((li: Record<string, unknown>) => {
+      items: validItems.map((li) => {
         const line: Record<string, unknown> = {
           item: { id: String(li.item) },
           quantity: Number(li.quantity),
           location: { id: "2" },
-        };
-        if (li.rate != null) line.rate = Number(li.rate);
-        if (li.amount != null) line.amount = Number(li.amount);
-        if (li.description) line.description = String(li.description);
-        if (li.lotNumber) {
-          line.inventoryDetail = {
+          inventoryDetail: {
             inventoryAssignment: {
               items: [
                 {
@@ -424,8 +431,11 @@ async function createTransaction(
                 },
               ],
             },
-          };
-        }
+          },
+        };
+        if (li.rate != null) line.rate = Number(li.rate);
+        if (li.amount != null) line.amount = Number(li.amount);
+        if (li.description) line.description = String(li.description);
         return line;
       }),
     },
@@ -439,7 +449,7 @@ async function createTransaction(
   const location = headers?.location ?? "";
   const createdId = location.split("/").pop() ?? "";
   return {
-    summary: `${label} created as Pending Approval${createdId ? ` (ID: ${createdId})` : ""}`,
+    summary: `${label} created${createdId ? ` (ID: ${createdId})` : ""}${skippedCount > 0 ? `. ${skippedCount} item(s) skipped (no stock).` : ""}`,
     id: createdId,
     statusCode: res.statusCode,
     approvalStatus: "Pending Approval",
