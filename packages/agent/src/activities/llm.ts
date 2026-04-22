@@ -242,35 +242,14 @@ Example - after summarizing a PO for confirmation:
 Only include actions when explicit user confirmation or a clear choice is needed. Do not include actions in regular conversational responses.`,
     tools: {
       search_records: tool({
-        description: `Search NetSuite records by type. Use either "q" for exact SuiteQL conditions, or "keywords" for fuzzy best-effort matching (preferred for item lookups from PO text).
-Field names per record type:
-- customer: companyName, email, entityId, phone
-- vendor: companyName, email, entityId
-- inventoryItem: itemId, displayName, description
-- purchaseOrder: tranId, entity, tranDate, status
-- invoice: tranId, entity, tranDate, total, status
-- vendorBill: tranId, entity, tranDate, total
-When matching items from PO text, prefer "keywords" + "searchField" — it splits words and matches in any order.`,
+        description:
+          "Search NetSuite records by type. Pass keywords to fuzzy-match — each word is matched independently so word order does not matter. Omit keywords to list all records.",
         inputSchema: z.object({
           recordType: recordTypeEnum,
-          q: z
-            .string()
-            .optional()
-            .describe(
-              "SuiteQL-style filter condition, e.g. companyName CONTAIN \"Acme\". Use for exact queries.",
-            ),
           keywords: z
             .string()
             .optional()
-            .describe(
-              "Space-separated keywords for fuzzy matching. Each word is matched independently (AND). Preferred for item lookups from PO text where word order may differ.",
-            ),
-          searchField: z
-            .string()
-            .optional()
-            .describe(
-              "Field to search keywords against (default: displayName for inventoryItem, companyName for customer/vendor, tranId for transactions).",
-            ),
+            .describe("Search keywords. Each word is matched independently."),
           limit: z
             .number()
             .optional()
@@ -379,19 +358,13 @@ export async function executeTool(
           typeof args.recordType === "string" ? args.recordType : "customer";
         const limit =
           typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
+        const keywords =
+          typeof args.keywords === "string" ? args.keywords.trim() : "";
 
         let q: string | undefined;
-        if (typeof args.q === "string") {
-          q = args.q;
-        } else if (typeof args.keywords === "string" && args.keywords.trim()) {
-          const field =
-            typeof args.searchField === "string"
-              ? args.searchField
-              : defaultSearchField(recordType);
-          const words = args.keywords
-            .trim()
-            .split(/\s+/)
-            .filter((w: string) => w.length > 0);
+        if (keywords) {
+          const field = defaultSearchField(recordType);
+          const words = keywords.split(/\s+/).filter((w: string) => w.length > 0);
           q = words
             .map((w: string) => `${field} CONTAIN "${w}"`)
             .join(" AND ");
