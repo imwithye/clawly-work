@@ -406,7 +406,6 @@ async function createTransaction(
   };
   if (args.tranDate) body.tranDate = String(args.tranDate);
   if (args.memo) body.memo = String(args.memo);
-  body.currency = { id: "5" }; // SGD
   body.approvalStatus = { id: "1" };
 
   const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
