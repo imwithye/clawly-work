@@ -11,6 +11,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Button } from "@/components/button";
+import { Modal } from "@/components/modal";
 import { startChatSession } from "@/lib/use-chat";
 import { ChatProvider, type ChatSession } from "./chat-context";
 
@@ -32,6 +34,8 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const activeSessionId = pathname.match(/\/chat\/(.+)/)?.[1];
   const activeSession = useMemo(
@@ -89,15 +93,21 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     }
   };
 
-  const handleDelete = async (sessionId: string) => {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     await fetch("/api/chat/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ sessionId: deleteTarget.id }),
     });
-    if (activeSessionId === sessionId) {
+    if (activeSessionId === deleteTarget.id) {
       router.push("/dashboard/chat");
     }
+    // Modal closes when sessions list updates (deleteTarget removed)
+    setSessions((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    setDeleting(false);
   };
 
   return (
@@ -188,7 +198,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => handleDelete(session.id)}
+                      onClick={() => setDeleteTarget(session)}
                       className="flex h-7 w-7 items-center justify-center rounded-[3px] text-muted opacity-0 transition-opacity hover:bg-background hover:text-danger group-hover:opacity-100"
                       aria-label={`Delete ${session.title}`}
                     >
@@ -205,6 +215,31 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
       <section className="h-full min-h-0 min-w-0 overflow-hidden">
         <ChatProvider activeSession={activeSession}>{children}</ChatProvider>
       </section>
+
+      <Modal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+      >
+        <Modal.Header>Delete conversation</Modal.Header>
+        <Modal.Body>
+          <p className="text-sm text-foreground">
+            Are you sure you want to delete{" "}
+            <strong>{deleteTarget?.title}</strong>? This action cannot be undone.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="outline"
+            onClick={() => setDeleteTarget(null)}
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
