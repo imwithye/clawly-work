@@ -269,7 +269,7 @@ When PO files are uploaded or the user asks to create an invoice:
 
 **Step 2: Find the customer** — Search for the customer in NetSuite using search_records (recordType: customer). Use only the core company name as keywords — strip suffixes like "PTE LTD", "PTY LTD", "SDN BHD", "INC", "LLC", "CO", "LTD". For example, search "FAIR BREEZE TRADING" not "FAIR BREEZE TRADING PTE LTD". If 0 results, try fewer keywords.
 
-**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search returns item ID, name, and available lot numbers (lotId, lotNumber). Match each PO item to a NetSuite item ID and select an appropriate lot.
+**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search already returns item ID, name, available lotId, stock quantity, and location. Do NOT call get_record for items — search results have everything you need.
 
 **Step 4: Show matching table** — Present a summary table (see format below) showing every PO line item with its NetSuite match and selected lot number. Ask user to confirm.
 
@@ -548,10 +548,15 @@ export async function executeTool(
         const recordType =
           typeof args.recordType === "string" ? args.recordType : "";
         const id = typeof args.id === "string" ? args.id : "";
-        const expand = args.expandSubResources !== false;
-        const path = `record/v1/${recordType}/${id}${expand ? "?expandSubResources=true" : ""}`;
+        const path = `record/v1/${recordType}/${id}`;
         const res = await netsuiteGet(path, creds);
-        return { summary: `${recordLabel(recordType)} #${id}`, record: res.data };
+        // Truncate response to avoid context overflow
+        const raw = JSON.stringify(res.data);
+        const record =
+          raw.length > 3000
+            ? JSON.parse(raw.slice(0, 3000) + "}")
+            : res.data;
+        return { summary: `${recordLabel(recordType)} #${id}`, record };
       }
       case "create_invoice":
         return createTransaction("invoice", "Invoice", args, creds);
