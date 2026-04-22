@@ -294,6 +294,29 @@ Only include actions when explicit user confirmation or a clear choice is needed
     };
   }
 
+  // Fallback: some models output XML tool calls as text instead of using
+  // the function calling API. Parse and execute them if detected.
+  const xmlMatch = result.text.match(
+    /<invoke\s+name="(\w+)">([\s\S]*?)<\/invoke>/,
+  );
+  if (xmlMatch) {
+    const toolName = xmlMatch[1];
+    const paramRegex = /<parameter\s+name="(\w+)">([\s\S]*?)<\/parameter>/g;
+    const args: Record<string, unknown> = {};
+    let m: RegExpExecArray | null;
+    while ((m = paramRegex.exec(xmlMatch[2])) !== null) {
+      const val = m[2].trim();
+      const num = Number(val);
+      args[m[1]] = !Number.isNaN(num) && val !== "" ? num : val;
+    }
+    return {
+      type: "tool_call",
+      tool: toolName,
+      toolCallId: `fallback_${Date.now()}`,
+      args,
+    };
+  }
+
   return { type: "message", content: result.text };
 }
 
