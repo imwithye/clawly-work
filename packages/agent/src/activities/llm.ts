@@ -124,9 +124,9 @@ const SUITEQL_CONFIG: Record<
     searchField: "companyName",
   },
   inventoryItem: {
-    table: "inventoryItem",
-    fields: "id, itemId, salesDescription",
-    searchField: "itemId",
+    table: "inventoryItem i LEFT JOIN inventoryNumber n ON n.item = i.id",
+    fields: "i.id, i.itemId, i.salesDescription, n.id as lotId, n.inventoryNumber as lotNumber",
+    searchField: "i.itemId",
   },
   purchaseOrder: {
     table: "transaction",
@@ -166,6 +166,10 @@ const transactionInputSchema = z.object({
         rate: z.number().optional().describe("Unit price"),
         amount: z.number().optional().describe("Line total amount"),
         description: z.string().optional().describe("Line description"),
+        lotNumber: z
+          .string()
+          .optional()
+          .describe("Lot/batch number for inventory items. Ask user if needed."),
       }),
     )
     .describe("Line items"),
@@ -259,22 +263,21 @@ When PO files are uploaded or the user asks to create an invoice:
 
 **Step 2: Find the customer** — Search for the customer/vendor in NetSuite using search_records with the company name from the PO as keywords. Use the matched customer's internal ID.
 
-**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. Match each PO item to a NetSuite item ID.
+**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search returns item ID, name, and available lot numbers (lotId, lotNumber). Match each PO item to a NetSuite item ID and select an appropriate lot.
 
-**Step 4: Show matching table** — Present a summary table (see format below) showing every PO line item with its NetSuite match. Ask user to confirm.
+**Step 4: Show matching table** — Present a summary table (see format below) showing every PO line item with its NetSuite match and selected lot number. Ask user to confirm.
 
-**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and all matched item IDs, quantities, and rates from the PO.
+**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and all matched item IDs, quantities, rates, and lotNumber (the lotId from search results) from the PO.
 
 ## Matching Summary Format
 
 After searching for items, present results in a markdown table like this:
 
-| PO Item | Qty | Price | NetSuite Match | Status |
-|---------|-----|-------|---------------|--------|
-| DEWARS WHITE LABEL | 10 | $25.00 | DEWARS WHITE LABEL 1L (ID: 998) | ✅ Found |
-| ABSOLUT VODKA | 5 | $30.00 | ABSOLUT VODKA 700ML (ID: 256) | ✅ Found |
-| MAKERS MARK BOURBON | 3 | $45.00 | — | ❌ Not found |
-| MARTINI ROSSO | 6 | $15.00 | MARTINI ROSSO 1L (ID: 501), MARTINI ROSSO 750ML (ID: 502) | ⚠️ Multiple matches |
+| PO Item | Qty | Price | NetSuite Match | Lot | Status |
+|---------|-----|-------|---------------|-----|--------|
+| DEWARS WHITE LABEL | 10 | $25.00 | DEWARS WHITE LABEL 1L (ID: 998) | SBLE7242 (lot: 4720) | ✅ Found |
+| ABSOLUT VODKA | 5 | $30.00 | ABSOLUT VODKA 700ML (ID: 256) | SBLF1898 (lot: 5568) | ✅ Found |
+| MAKERS MARK BOURBON | 3 | $45.00 | — | — | ❌ Not found |
 
 - ✅ **Found**: Exact or confident match — will be used for invoice
 - ❌ **Not found**: No match in NetSuite — user needs to resolve
@@ -395,15 +398,31 @@ async function createTransaction(
   const body: Record<string, unknown> = {
     entity: { id: entity },
     subsidiary: { id: "1" },
-    location: { id: "1" },
+    location: { id: "2" },
     item: {
-      items: items.map((li: Record<string, unknown>) => ({
-        item: { id: String(li.item) },
-        quantity: Number(li.quantity),
-        ...(li.rate != null ? { rate: Number(li.rate) } : {}),
-        ...(li.amount != null ? { amount: Number(li.amount) } : {}),
-        ...(li.description ? { description: String(li.description) } : {}),
-      })),
+      items: items.map((li: Record<string, unknown>) => {
+        const line: Record<string, unknown> = {
+          item: { id: String(li.item) },
+          quantity: Number(li.quantity),
+          location: { id: "2" },
+        };
+        if (li.rate != null) line.rate = Number(li.rate);
+        if (li.amount != null) line.amount = Number(li.amount);
+        if (li.description) line.description = String(li.description);
+        if (li.lotNumber) {
+          line.inventoryDetail = {
+            inventoryAssignment: {
+              items: [
+                {
+                  issueInventoryNumber: { id: String(li.lotNumber) },
+                  quantity: Number(li.quantity),
+                },
+              ],
+            },
+          };
+        }
+        return line;
+      }),
     },
   };
   if (args.tranDate) body.tranDate = String(args.tranDate);
