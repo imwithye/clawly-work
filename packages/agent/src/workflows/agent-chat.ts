@@ -166,6 +166,15 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
 
       if (response.type === "tool_call") {
         status = "tool_running";
+
+        // Save pending tool message (no result) so UI shows loading
+        const pendingContent = JSON.stringify({
+          tool: response.tool,
+          toolCallId: response.toolCallId,
+          args: response.args,
+        });
+        await saveMessage(sessionId, "tool", pendingContent);
+
         let result: unknown;
         const credentials =
           (await loadConnectorCredentials(
@@ -189,6 +198,8 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
             };
           }
         }
+
+        // Save completed tool message with result
         const toolContent = JSON.stringify({
           tool: response.tool,
           toolCallId: response.toolCallId,

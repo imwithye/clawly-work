@@ -110,6 +110,8 @@ export async function callLLM(
     (msg): ModelMessage[] => {
       if (msg.role === "tool") {
         const parsed = JSON.parse(msg.content) as StoredToolMessage;
+        // Skip pending tool messages (no result)
+        if (parsed.result === undefined) return [];
         const toolName = parsed.tool ?? "unknown_tool";
         const toolCallId = parsed.toolCallId ?? "unknown_tool_call";
         return [

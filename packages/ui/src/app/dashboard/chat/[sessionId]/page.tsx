@@ -74,6 +74,32 @@ export default function ChatPage({
     }
   };
 
+  // Merge tool messages: if two tool messages share the same toolCallId,
+  // keep only the latest (the one with a result).
+  const displayMessages = messages.filter((msg, i) => {
+    if (msg.role !== "tool") return true;
+    try {
+      const parsed = JSON.parse(msg.content);
+      if (!parsed.toolCallId) return true;
+      // Check if a later message has the same toolCallId (with result)
+      const laterDuplicate = messages.find(
+        (other, j) =>
+          j > i &&
+          other.role === "tool" &&
+          (() => {
+            try {
+              return JSON.parse(other.content).toolCallId === parsed.toolCallId;
+            } catch {
+              return false;
+            }
+          })(),
+      );
+      return !laterDuplicate;
+    } catch {
+      return true;
+    }
+  });
+
   const empty = !isLoading && messages.length === 0 && status === "idle";
 
   return (
@@ -110,11 +136,11 @@ export default function ChatPage({
 
           {empty && <EmptyState />}
 
-          {messages.map((message, i) => (
+          {displayMessages.map((message, i) => (
             <MessageBubble
               key={messageKey(message)}
               message={message}
-              onAction={i === messages.length - 1 ? send : undefined}
+              onAction={i === displayMessages.length - 1 ? send : undefined}
             />
           ))}
 
@@ -423,22 +449,39 @@ function ToolStep({
     result?: unknown;
   };
 }) {
+  const pending = parsed.result === undefined || parsed.result === null;
   const result = asRecord(parsed.result);
-  const title =
-    typeof result.title === "string"
-      ? result.title
-      : formatToolName(parsed.tool);
+  const hasError = typeof result.error === "string";
+  const title = formatToolName(parsed.tool);
   const summary = typeof result.summary === "string" ? result.summary : "";
 
-  const label = summary || title;
+  const label = pending
+    ? title
+    : hasError
+      ? `${title}: ${result.error}`
+      : summary || title;
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted">
-      <Icon
-        icon="solar:check-read-linear"
-        width={16}
-        className="shrink-0 text-muted"
-      />
+      {pending ? (
+        <Icon
+          icon="solar:refresh-linear"
+          width={16}
+          className="shrink-0 animate-spin text-muted"
+        />
+      ) : hasError ? (
+        <Icon
+          icon="solar:close-circle-linear"
+          width={16}
+          className="shrink-0 text-danger"
+        />
+      ) : (
+        <Icon
+          icon="solar:check-read-linear"
+          width={16}
+          className="shrink-0 text-success"
+        />
+      )}
       <span className="truncate">{label}</span>
     </div>
   );
