@@ -394,6 +394,8 @@ async function createTransaction(
   const items = Array.isArray(args.items) ? args.items : [];
   const body: Record<string, unknown> = {
     entity: { id: entity },
+    subsidiary: { id: "1" },
+    location: { id: "1" },
     item: {
       items: items.map((li: Record<string, unknown>) => ({
         item: { id: String(li.item) },
@@ -406,7 +408,6 @@ async function createTransaction(
   };
   if (args.tranDate) body.tranDate = String(args.tranDate);
   if (args.memo) body.memo = String(args.memo);
-  body.approvalStatus = { id: "1" };
 
   const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
   const headers = res.headers as Record<string, string>;
