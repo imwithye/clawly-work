@@ -18,8 +18,8 @@ const BUCKET = process.env.S3_BUCKET || "uploads";
 
 export async function getObject(key: string): Promise<Buffer> {
   const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-  const bytes = await res.Body!.transformToByteArray();
-  return Buffer.from(bytes);
+  const bytes = await res.Body?.transformToByteArray();
+  return Buffer.from(bytes ?? []);
 }
 
 export async function putObject(

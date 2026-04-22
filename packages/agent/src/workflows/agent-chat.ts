@@ -162,8 +162,11 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
         let result: unknown;
         try {
           result = await executeTool(response.tool, response.args);
-        } catch {
-          result = { error: `Tool failed: ${response.tool}` };
+        } catch (err) {
+          result = {
+            error: `Tool failed: ${response.tool}`,
+            message: err instanceof Error ? err.message : String(err),
+          };
         }
         const toolContent = JSON.stringify({
           tool: response.tool,

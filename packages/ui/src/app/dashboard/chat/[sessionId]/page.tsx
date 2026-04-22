@@ -274,22 +274,21 @@ function ToolStep({
   };
 }) {
   const result = asRecord(parsed.result);
-  const args = asRecord(parsed.args);
-  const steps = Array.isArray(result.steps)
-    ? result.steps.filter((step): step is string => typeof step === "string")
-    : [];
   const title =
     typeof result.title === "string"
       ? result.title
       : formatToolName(parsed.tool);
   const summary = typeof result.summary === "string" ? result.summary : "";
-  const query = typeof args.query === "string" ? args.query : undefined;
 
   const label = summary || title;
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted">
-      <Icon icon="solar:check-read-linear" width={16} className="shrink-0 text-muted" />
+      <Icon
+        icon="solar:check-read-linear"
+        width={16}
+        className="shrink-0 text-muted"
+      />
       <span className="truncate">{label}</span>
     </div>
   );

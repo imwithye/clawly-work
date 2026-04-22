@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
+import { netsuiteGet } from "../lib/netsuite";
 import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
 import type { ProcessedFile } from "./files";
@@ -33,122 +34,10 @@ type StoredToolMessage = {
   result?: unknown;
 };
 
-type MockToolName =
-  | "inspect_invoice"
-  | "check_connector"
-  | "search_workspace"
-  | "get_task_status";
-
-const toolDescriptions: Record<MockToolName, string> = {
-  inspect_invoice:
-    "Inspect invoice data and return validation notes. Use when the user asks about invoices.",
-  check_connector:
-    "Check connector health. Use when the user asks about integrations, connectors, or sync.",
-  search_workspace:
-    "Search workspace data. Use when the user asks to search or find information.",
-  get_task_status:
-    "Check current task status. Use when the user asks about status or progress.",
-};
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function getLastUserMessage(history: ChatMessage[]) {
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === "user") return history[i];
-  }
-  return undefined;
-}
-
-function getMessagesAfter(history: ChatMessage[], ts: number) {
-  return history.filter((msg) => msg.ts >= ts);
-}
-
-function parseStoredTool(content: string): StoredToolMessage | undefined {
-  try {
-    return JSON.parse(content) as StoredToolMessage;
-  } catch {
-    return undefined;
-  }
-}
-
-function pickMockTool(message: string): MockToolName | undefined {
-  const text = message.toLowerCase();
-  if (text.includes("invoice") || text.includes("发票"))
-    return "inspect_invoice";
-  if (
-    text.includes("connector") ||
-    text.includes("integration") ||
-    text.includes("sync") ||
-    text.includes("连接")
-  ) {
-    return "check_connector";
-  }
-  if (
-    text.includes("search") ||
-    text.includes("find") ||
-    text.includes("lookup") ||
-    text.includes("查")
-  ) {
-    return "search_workspace";
-  }
-  if (
-    text.includes("status") ||
-    text.includes("progress") ||
-    text.includes("状态") ||
-    text.includes("进度")
-  ) {
-    return "get_task_status";
-  }
-  return undefined;
-}
-
-function getPendingMockTool(history: ChatMessage[]): LLMResponse | undefined {
-  const lastUser = getLastUserMessage(history);
-  if (!lastUser) return undefined;
-
-  const messagesAfterUser = getMessagesAfter(history, lastUser.ts);
-  const hasAssistantAfterUser = messagesAfterUser.some(
-    (msg) => msg.role === "assistant",
-  );
-  if (hasAssistantAfterUser) return undefined;
-
-  const hasToolAfterUser = messagesAfterUser.some((msg) => msg.role === "tool");
-  if (hasToolAfterUser) return undefined;
-
-  const toolName = pickMockTool(lastUser.content);
-  if (!toolName) return undefined;
-
-  return {
-    type: "tool_call",
-    tool: toolName,
-    toolCallId: `${toolName}_${lastUser.ts}`,
-    args: {
-      query: lastUser.content,
-    },
-  };
-}
-
-function getMockToolSummary(history: ChatMessage[]): LLMResponse | undefined {
-  const lastMessage = history[history.length - 1];
-  if (lastMessage?.role !== "tool") return undefined;
-
-  const parsed = parseStoredTool(lastMessage.content);
-  if (!parsed?.tool) return undefined;
-
-  const result = asRecord(parsed.result);
-  const summary =
-    typeof result.summary === "string"
-      ? result.summary
-      : `${parsed.tool} completed.`;
-
-  return {
-    type: "message",
-    content: `Tool step completed: ${summary}`,
-  };
 }
 
 async function buildFileContextMessage(
@@ -196,12 +85,6 @@ export async function callLLM(
   history: ChatMessage[],
   fileContext?: ProcessedFile[],
 ): Promise<LLMResponse> {
-  const pendingMockTool = getPendingMockTool(history);
-  if (pendingMockTool) return pendingMockTool;
-
-  const mockToolSummary = getMockToolSummary(history);
-  if (mockToolSummary) return mockToolSummary;
-
   const messages: ModelMessage[] = [];
 
   if (fileContext?.length) {
@@ -266,6 +149,8 @@ You operate in two modes:
 
 Both modes use the same conversation interface. Be concise, practical, and action-oriented. Respond in the same language the user writes in.
 
+You have access to NetSuite tools to search and retrieve data. Use them when the user asks about customers, items, invoices, or other NetSuite records.
+
 ## Action Buttons
 
 When you need user confirmation or want to offer clear choices, append an HTML comment at the end of your message with action buttons:
@@ -277,25 +162,48 @@ Example - after summarizing a PO for confirmation:
 
 Only include actions when explicit user confirmation or a clear choice is needed. Do not include actions in regular conversational responses.`,
     tools: {
-      inspect_invoice: tool({
-        description: toolDescriptions.inspect_invoice,
-        inputSchema: z.object({ query: z.string() }),
+      search_customers: tool({
+        description:
+          "Search NetSuite customers by name, email, or ID. Use when the user asks about customers, vendors, or contacts.",
+        inputSchema: z.object({
+          query: z
+            .string()
+            .describe("Search term to match against customer name or email"),
+          limit: z
+            .number()
+            .optional()
+            .describe("Max results to return (default 20)"),
+        }),
       }),
-      check_connector: tool({
-        description: toolDescriptions.check_connector,
-        inputSchema: z.object({ query: z.string() }),
+      search_items: tool({
+        description:
+          "Search NetSuite items (products, services, inventory). Use when the user asks about items, products, SKUs, or inventory.",
+        inputSchema: z.object({
+          query: z
+            .string()
+            .describe(
+              "Search term to match against item name, displayName, or itemId",
+            ),
+          limit: z
+            .number()
+            .optional()
+            .describe("Max results to return (default 20)"),
+        }),
       }),
-      search_workspace: tool({
-        description: toolDescriptions.search_workspace,
-        inputSchema: z.object({ query: z.string() }),
-      }),
-      get_task_status: tool({
-        description: toolDescriptions.get_task_status,
-        inputSchema: z.object({ query: z.string() }),
-      }),
-      web_search: tool({
-        description: "Search the web for information",
-        inputSchema: z.object({ query: z.string() }),
+      search_invoices: tool({
+        description:
+          "Search NetSuite invoices by invoice number, customer name, or date range. Use when the user asks about invoices or bills.",
+        inputSchema: z.object({
+          query: z
+            .string()
+            .describe(
+              "Search term to match against invoice number or customer name",
+            ),
+          limit: z
+            .number()
+            .optional()
+            .describe("Max results to return (default 20)"),
+        }),
       }),
     },
     messages,
@@ -314,86 +222,56 @@ Only include actions when explicit user confirmation or a clear choice is needed
   return { type: "message", content: result.text };
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const KNOWN_TOOLS = new Set([
+  "search_customers",
+  "search_items",
+  "search_invoices",
+]);
 
 export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
-  await sleep(900);
-
+  if (!KNOWN_TOOLS.has(toolName)) {
+    return { error: `Unknown tool: ${toolName}` };
+  }
+  // Let transient errors (network, 5xx) throw so Temporal retries
   const query = typeof args.query === "string" ? args.query : "";
+  const limit = typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
+  const q = encodeURIComponent(query);
 
   switch (toolName) {
-    case "inspect_invoice":
+    case "search_customers": {
+      const path = `/record/v1/customer?q=${q}&limit=${limit}&fields=id,companyName,email,phone,entityId`;
+      const res = await netsuiteGet(path);
+      const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
-        title: "Invoice inspection",
-        summary: "Found a payable invoice with two fields that need review.",
-        steps: [
-          "Loaded invoice context",
-          "Checked required fields",
-          "Flagged missing purchase order",
-        ],
-        fields: {
-          vendor: "Acme Supply Co.",
-          amount: "$1,248.00",
-          dueDate: "2026-04-30",
-        },
-        query,
+        summary: `Found ${data.items?.length ?? 0} customer(s) matching "${query}"`,
+        items: data.items ?? [],
+        hasMore: data.hasMore ?? false,
       };
-    case "check_connector":
+    }
+    case "search_items": {
+      const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}&fields=id,itemId,displayName,description`;
+      const res = await netsuiteGet(path);
+      const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
-        title: "Connector health check",
-        summary: "Connector is reachable; last sync completed with warnings.",
-        steps: [
-          "Opened connector registry",
-          "Checked auth status",
-          "Read latest sync result",
-        ],
-        connector: "NetSuite",
-        status: "warning",
-        lastSync: "12 minutes ago",
-        query,
+        summary: `Found ${data.items?.length ?? 0} item(s) matching "${query}"`,
+        items: data.items ?? [],
+        hasMore: data.hasMore ?? false,
       };
-    case "search_workspace":
+    }
+    case "search_invoices": {
+      const path = `/record/v1/invoice?q=${q}&limit=${limit}&fields=id,tranId,tranDate,total,status,entity`;
+      const res = await netsuiteGet(path);
+      const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
-        title: "Workspace search",
-        summary: "Found three matching workspace records.",
-        steps: [
-          "Parsed search request",
-          "Queried workspace index",
-          "Ranked matching records",
-        ],
-        matches: [
-          "Invoice INV-1042",
-          "Vendor Acme Supply Co.",
-          "Connector NetSuite",
-        ],
-        query,
+        summary: `Found ${data.items?.length ?? 0} invoice(s) matching "${query}"`,
+        items: data.items ?? [],
+        hasMore: data.hasMore ?? false,
       };
-    case "get_task_status":
-      return {
-        title: "Task status",
-        summary: "The workflow is active and waiting for the next action.",
-        steps: [
-          "Checked workflow status",
-          "Read recent tool activity",
-          "Prepared status summary",
-        ],
-        status: "ready",
-        query,
-      };
-    case "web_search":
-      return {
-        title: "Web search",
-        summary: `Search completed for: ${query}`,
-        steps: ["Prepared search query", "Fetched mock results"],
-        results: [`Mock result for ${query}`],
-        query,
-      };
+    }
     default:
-      throw new Error(`Unknown tool: ${toolName}`);
+      return { error: `Unknown tool: ${toolName}` };
   }
 }
