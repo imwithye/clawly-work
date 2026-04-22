@@ -10,8 +10,12 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const initialMessage = body?.message as string | undefined;
   const files = body?.files as { key: string; name: string }[] | undefined;
+  const connectorId = body?.connectorId as string | undefined;
 
-  const [chat] = await db.insert(chats).values({}).returning();
+  const [chat] = await db
+    .insert(chats)
+    .values({ ...(connectorId ? { connectorId } : {}) })
+    .returning();
 
   if (files?.length) {
     await db

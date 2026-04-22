@@ -9,6 +9,7 @@ import {
 } from "@temporalio/workflow";
 import type * as dbActivities from "../activities/db";
 import type * as fileActivities from "../activities/files";
+import type { NetsuiteCredentials } from "../lib/netsuite";
 import type * as llmActivities from "../activities/llm";
 
 const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
@@ -21,12 +22,11 @@ const { processFiles } = proxyActivities<typeof fileActivities>({
   retry: { maximumAttempts: 2 },
 });
 
-const { updateChatTitle, saveMessage, loadHistory } = proxyActivities<
-  typeof dbActivities
->({
-  startToCloseTimeout: "10 seconds",
-  retry: { maximumAttempts: 2 },
-});
+const { updateChatTitle, saveMessage, loadHistory, loadConnectorCredentials } =
+  proxyActivities<typeof dbActivities>({
+    startToCloseTimeout: "10 seconds",
+    retry: { maximumAttempts: 2 },
+  });
 
 export type ChatMessage = {
   id?: number;
@@ -160,13 +160,27 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       if (response.type === "tool_call") {
         status = "tool_running";
         let result: unknown;
-        try {
-          result = await executeTool(response.tool, response.args);
-        } catch (err) {
+        const credentials =
+          (await loadConnectorCredentials(
+            sessionId,
+          )) as NetsuiteCredentials | null;
+        if (!credentials) {
           result = {
-            error: `Tool failed: ${response.tool}`,
-            message: err instanceof Error ? err.message : String(err),
+            error: "No connector configured for this chat session.",
           };
+        } else {
+          try {
+            result = await executeTool(
+              response.tool,
+              response.args,
+              credentials,
+            );
+          } catch (err) {
+            result = {
+              error: `Tool failed: ${response.tool}`,
+              message: err instanceof Error ? err.message : String(err),
+            };
+          }
         }
         const toolContent = JSON.stringify({
           tool: response.tool,

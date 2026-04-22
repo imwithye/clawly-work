@@ -5,6 +5,7 @@ import { createContext, useContext } from "react";
 export type ChatSession = {
   id: string;
   title: string;
+  connectorId: string | null;
   createdAt: string;
 };
 

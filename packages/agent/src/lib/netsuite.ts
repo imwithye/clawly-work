@@ -1,35 +1,28 @@
 import { NetsuiteApiClient } from "netsuite-api-client";
 
-const REQUIRED_ENV = [
-  "NETSUITE_CLIENT_ID",
-  "NETSUITE_CLIENT_SECRET",
-  "NETSUITE_TOKEN_ID",
-  "NETSUITE_TOKEN_SECRET",
-  "NETSUITE_ACCOUNT_ID",
-] as const;
+export type NetsuiteCredentials = {
+  accountId: string;
+  consumerKey: string;
+  consumerSecret: string;
+  tokenId: string;
+  tokenSecret: string;
+};
 
-let client: NetsuiteApiClient;
-
-function getClient() {
-  if (!client) {
-    const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-    if (missing.length) {
-      throw new Error(`Missing NetSuite env vars: ${missing.join(", ")}`);
-    }
-    client = new NetsuiteApiClient({
-      consumer_key: process.env.NETSUITE_CLIENT_ID as string,
-      consumer_secret_key: process.env.NETSUITE_CLIENT_SECRET as string,
-      token: process.env.NETSUITE_TOKEN_ID as string,
-      token_secret: process.env.NETSUITE_TOKEN_SECRET as string,
-      realm: process.env.NETSUITE_ACCOUNT_ID as string,
-    });
-  }
-  return client;
+function createClient(creds: NetsuiteCredentials) {
+  return new NetsuiteApiClient({
+    consumer_key: creds.consumerKey,
+    consumer_secret_key: creds.consumerSecret,
+    token: creds.tokenId,
+    token_secret: creds.tokenSecret,
+    realm: creds.accountId,
+  });
 }
 
 export async function netsuiteGet(
   path: string,
+  credentials: NetsuiteCredentials,
 ): Promise<{ data: unknown; statusCode: number }> {
-  const res = await getClient().request({ method: "GET", path });
+  const client = createClient(credentials);
+  const res = await client.request({ method: "GET", path });
   return { data: res.data, statusCode: res.statusCode };
 }

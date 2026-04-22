@@ -1,4 +1,4 @@
-import { chats, db, eq, messages } from "@clawly-work/db";
+import { chats, connectors, db, eq, messages } from "@clawly-work/db";
 
 export async function updateChatTitle(
   sessionId: string,
@@ -44,4 +44,23 @@ export async function loadHistory(
     content: r.content,
     ts: r.ts.getTime(),
   }));
+}
+
+export async function loadConnectorCredentials(
+  sessionId: string,
+): Promise<Record<string, string> | null> {
+  const [chat] = await db
+    .select({ connectorId: chats.connectorId })
+    .from(chats)
+    .where(eq(chats.id, sessionId));
+
+  if (!chat?.connectorId) return null;
+
+  const [connector] = await db
+    .select({ credentials: connectors.credentials })
+    .from(connectors)
+    .where(eq(connectors.id, chat.connectorId));
+
+  if (!connector) return null;
+  return connector.credentials as Record<string, string>;
 }

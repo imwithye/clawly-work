@@ -52,7 +52,7 @@ export default function InvoiceFillingPage() {
       .join("\n");
 
     const chatFiles = files.map((f) => ({ key: f.key, name: f.name }));
-    const sessionId = await startChatSession(message, chatFiles);
+    const sessionId = await startChatSession(message, chatFiles, selectedId);
     router.push(`/dashboard/chat/${sessionId}`);
   };
 

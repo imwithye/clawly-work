@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
-import { netsuiteGet } from "../lib/netsuite";
+import { type NetsuiteCredentials, netsuiteGet } from "../lib/netsuite";
 import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
 import type { ProcessedFile } from "./files";
@@ -231,6 +231,7 @@ const KNOWN_TOOLS = new Set([
 export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
+  credentials: NetsuiteCredentials,
 ): Promise<unknown> {
   if (!KNOWN_TOOLS.has(toolName)) {
     return { error: `Unknown tool: ${toolName}` };
@@ -243,7 +244,7 @@ export async function executeTool(
   switch (toolName) {
     case "search_customers": {
       const path = `/record/v1/customer?q=${q}&limit=${limit}&fields=id,companyName,email,phone,entityId`;
-      const res = await netsuiteGet(path);
+      const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
         summary: `Found ${data.items?.length ?? 0} customer(s) matching "${query}"`,
@@ -253,7 +254,7 @@ export async function executeTool(
     }
     case "search_items": {
       const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}&fields=id,itemId,displayName,description`;
-      const res = await netsuiteGet(path);
+      const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
         summary: `Found ${data.items?.length ?? 0} item(s) matching "${query}"`,
@@ -263,7 +264,7 @@ export async function executeTool(
     }
     case "search_invoices": {
       const path = `/record/v1/invoice?q=${q}&limit=${limit}&fields=id,tranId,tranDate,total,status,entity`;
-      const res = await netsuiteGet(path);
+      const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
         summary: `Found ${data.items?.length ?? 0} invoice(s) matching "${query}"`,

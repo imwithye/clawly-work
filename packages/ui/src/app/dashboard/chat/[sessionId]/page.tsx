@@ -1,10 +1,22 @@
 "use client";
 
 import { Icon } from "@iconify/react";
-import { type KeyboardEvent, use, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import {
+  type KeyboardEvent,
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { getTypeConfig } from "@/lib/connector-types";
+import type { Connector } from "@/lib/types";
 import { useChat } from "@/lib/use-chat";
+import { useClickOutside } from "@/lib/use-click-outside";
+import { useConnectors } from "@/lib/use-connectors";
 import { useActiveChatSession } from "../chat-context";
 
 export default function ChatPage({
@@ -15,9 +27,24 @@ export default function ChatPage({
   const { sessionId } = use(params);
   const activeSession = useActiveChatSession();
   const { messages, status, isLoading, send } = useChat(sessionId);
+  const { connectors } = useConnectors();
+  const [connectorId, setConnectorId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setConnectorId(activeSession?.connectorId ?? null);
+  }, [activeSession?.connectorId]);
+
+  const handleConnectorChange = async (id: string | null) => {
+    setConnectorId(id);
+    await fetch("/api/chat/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, connectorId: id }),
+    });
+  };
 
   const msgCount = messages.length;
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages only
@@ -60,13 +87,20 @@ export default function ChatPage({
             {sessionId.slice(0, 10)}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span
-            className={`h-2 w-2 rounded-[2px] ${
-              status === "idle" ? "bg-success" : "bg-warning"
-            }`}
+        <div className="flex items-center gap-3">
+          <ConnectorPicker
+            connectors={connectors}
+            value={connectorId}
+            onChange={handleConnectorChange}
           />
-          {status === "idle" ? "Ready" : "Thinking"}
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span
+              className={`h-2 w-2 rounded-[2px] ${
+                status === "idle" ? "bg-success" : "bg-warning"
+              }`}
+            />
+            {status === "idle" ? "Ready" : "Thinking"}
+          </div>
         </div>
       </header>
 
@@ -251,6 +285,122 @@ function messageKey(message: { id?: number; role: string; content: string }) {
   return message.id !== undefined
     ? `message:${message.id}`
     : `${message.role}:${message.content}`;
+}
+
+function ConnectorPicker({
+  connectors,
+  value,
+  onChange,
+}: {
+  connectors: Connector[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = connectors.find((c) => c.id === value);
+  const selectedConfig = selected ? getTypeConfig(selected.type) : null;
+
+  useClickOutside(
+    ref,
+    open,
+    useCallback(() => setOpen(false), []),
+  );
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 rounded-[3px] border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-foreground/30 hover:text-foreground"
+      >
+        {selected ? (
+          <>
+            {selectedConfig && (
+              <Image
+                src={selectedConfig.icon}
+                alt={selectedConfig.label}
+                width={14}
+                height={14}
+                className="shrink-0"
+              />
+            )}
+            <span className="max-w-[120px] truncate">{selected.name}</span>
+          </>
+        ) : (
+          <>
+            <Icon icon="solar:plug-circle-linear" width={14} />
+            <span>No connector</span>
+          </>
+        )}
+        <Icon
+          icon="solar:alt-arrow-down-linear"
+          width={10}
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 border border-border bg-background shadow-lg">
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-muted transition-colors hover:bg-default/60"
+            >
+              <Icon icon="solar:close-circle-linear" width={14} />
+              Remove connector
+            </button>
+          )}
+          {connectors.map((c) => {
+            const config = getTypeConfig(c.type);
+            const active = c.id === value;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  onChange(c.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                  active
+                    ? "bg-accent/10 text-accent"
+                    : "text-foreground hover:bg-default/60"
+                }`}
+              >
+                {config && (
+                  <Image
+                    src={config.icon}
+                    alt={config.label}
+                    width={16}
+                    height={16}
+                    className="shrink-0"
+                  />
+                )}
+                <span className="min-w-0 truncate">{c.name}</span>
+                {active && (
+                  <Icon
+                    icon="solar:check-circle-linear"
+                    width={12}
+                    className="ml-auto shrink-0 text-accent"
+                  />
+                )}
+              </button>
+            );
+          })}
+          {connectors.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted">
+              No connectors configured
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
