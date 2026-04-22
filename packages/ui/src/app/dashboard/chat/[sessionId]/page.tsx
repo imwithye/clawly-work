@@ -461,8 +461,42 @@ function ToolStep({
       ? `${title}: ${result.error}`
       : summary || title;
 
+  const LABEL_MAP: Record<string, string> = {
+    recordType: "Type",
+    keywords: "Search",
+    q: "Query",
+    limit: "Limit",
+    id: "ID",
+    expandSubResources: "Include details",
+    entity: "Entity",
+    tranDate: "Date",
+    memo: "Memo",
+    items: "Line items",
+  };
+  const RECORD_LABEL: Record<string, string> = {
+    customer: "Customer",
+    vendor: "Vendor",
+    inventoryItem: "Inventory Item",
+    purchaseOrder: "Purchase Order",
+    invoice: "Invoice",
+    vendorBill: "Vendor Bill",
+  };
   const detail = Object.entries(args)
-    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => {
+      const label = LABEL_MAP[k] ?? k;
+      let val: string;
+      if (k === "recordType" && typeof v === "string") {
+        val = RECORD_LABEL[v] ?? v;
+      } else if (typeof v === "boolean") {
+        val = v ? "Yes" : "No";
+      } else if (Array.isArray(v)) {
+        val = `${v.length} item(s)`;
+      } else {
+        val = typeof v === "string" ? v : JSON.stringify(v);
+      }
+      return `${label}: ${val}`;
+    })
     .join("\n");
 
   return (
