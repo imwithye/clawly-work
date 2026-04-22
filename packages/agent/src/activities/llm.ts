@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type ModelMessage, tool } from "ai";
 import { z } from "zod";
-import { type NetsuiteCredentials, netsuiteSuiteQL } from "../lib/netsuite";
+import { type NetsuiteCredentials, netsuiteGet } from "../lib/netsuite";
 import { getObject } from "../lib/s3";
 import type { ChatMessage } from "../workflows/agent-chat";
 import type { ProcessedFile } from "./files";
@@ -257,41 +257,46 @@ export async function executeTool(
   }
   const query = typeof args.query === "string" ? args.query : "";
   const limit = typeof args.limit === "number" ? Math.min(args.limit, 100) : 20;
-  const escaped = query.replace(/'/g, "''");
 
   try {
     switch (toolName) {
       case "search_customers": {
-        const sql = query
-          ? `SELECT id, entityId, companyName, email, phone FROM customer WHERE companyName LIKE '%${escaped}%' OR entityId LIKE '%${escaped}%' OR email LIKE '%${escaped}%'`
-          : `SELECT id, entityId, companyName, email, phone FROM customer`;
-        const res = await netsuiteSuiteQL(sql, credentials, limit);
+        const q = query
+          ? `companyName CONTAIN "${query}" OR entityId CONTAIN "${query}"`
+          : undefined;
+        const path = `record/v1/customer?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
-          summary: `Found ${res.items.length} customer(s)${query ? ` matching "${query}"` : ""}`,
-          items: res.items,
-          hasMore: res.hasMore,
+          summary: `Found ${data.items?.length ?? 0} customer(s)${query ? ` matching "${query}"` : ""}`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
         };
       }
       case "search_items": {
-        const sql = query
-          ? `SELECT id, itemId, displayName, description FROM item WHERE displayName LIKE '%${escaped}%' OR itemId LIKE '%${escaped}%'`
-          : `SELECT id, itemId, displayName, description FROM item`;
-        const res = await netsuiteSuiteQL(sql, credentials, limit);
+        const q = query
+          ? `displayName CONTAIN "${query}" OR itemId CONTAIN "${query}"`
+          : undefined;
+        const path = `record/v1/inventoryItem?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
-          summary: `Found ${res.items.length} item(s)${query ? ` matching "${query}"` : ""}`,
-          items: res.items,
-          hasMore: res.hasMore,
+          summary: `Found ${data.items?.length ?? 0} item(s)${query ? ` matching "${query}"` : ""}`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
         };
       }
       case "search_invoices": {
-        const sql = query
-          ? `SELECT id, tranId, tranDate, total, status, entity FROM transaction WHERE type = 'CustInvc' AND (tranId LIKE '%${escaped}%' OR entity LIKE '%${escaped}%')`
-          : `SELECT id, tranId, tranDate, total, status, entity FROM transaction WHERE type = 'CustInvc'`;
-        const res = await netsuiteSuiteQL(sql, credentials, limit);
+        const q = query
+          ? `tranId CONTAIN "${query}"`
+          : undefined;
+        const path = `record/v1/invoice?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+        const res = await netsuiteGet(path, credentials);
+        const data = res.data as { items?: unknown[]; hasMore?: boolean };
         return {
-          summary: `Found ${res.items.length} invoice(s)${query ? ` matching "${query}"` : ""}`,
-          items: res.items,
-          hasMore: res.hasMore,
+          summary: `Found ${data.items?.length ?? 0} invoice(s)${query ? ` matching "${query}"` : ""}`,
+          items: data.items ?? [],
+          hasMore: data.hasMore ?? false,
         };
       }
       default:

@@ -18,22 +18,11 @@ function createClient(creds: NetsuiteCredentials) {
   });
 }
 
-export async function netsuiteSuiteQL(
-  sql: string,
+export async function netsuiteGet(
+  path: string,
   credentials: NetsuiteCredentials,
-  limit = 20,
-  offset = 0,
-): Promise<{ items: unknown[]; hasMore: boolean; totalResults: number }> {
+): Promise<{ data: unknown; statusCode: number }> {
   const client = createClient(credentials);
-  const res = await client.query(sql, limit, offset);
-  const data = res as {
-    items?: unknown[];
-    hasMore?: boolean;
-    totalResults?: number;
-  };
-  return {
-    items: data.items ?? [],
-    hasMore: data.hasMore ?? false,
-    totalResults: data.totalResults ?? 0,
-  };
+  const res = await client.request({ method: "GET", path });
+  return { data: res.data, statusCode: res.statusCode };
 }
