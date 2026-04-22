@@ -83,6 +83,12 @@ export function useChat(sessionId: string | null) {
                   setMessages(nextMessages);
                   firstBatch = false;
                   setIsLoading(false);
+                  // If last message is from user with no assistant reply, agent is still thinking
+                  const last = nextMessages[nextMessages.length - 1];
+                  if (last && last.role === "user") {
+                    waitingForAgentRef.current = true;
+                    setStatus("sending");
+                  }
                 } else {
                   setMessages((prev) => mergeMessages(prev, nextMessages));
                 }
