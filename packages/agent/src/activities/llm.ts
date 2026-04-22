@@ -430,7 +430,8 @@ async function createTransaction(
       }),
     },
   };
-  if (args.tranDate) body.tranDate = String(args.tranDate);
+  // Use today's date to avoid closed accounting period errors
+  body.tranDate = new Date().toISOString().split("T")[0];
   if (args.memo) body.memo = String(args.memo);
 
   const res = await netsuitePost(`record/v1/${recordType}`, body, credentials);
