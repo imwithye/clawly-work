@@ -108,18 +108,15 @@ function recordLabel(type: string): string {
   return RECORD_TYPES[type as keyof typeof RECORD_TYPES] ?? type;
 }
 
-const DEFAULT_SEARCH_FIELDS: Record<string, string> = {
-  customer: "entityId",
-  vendor: "entityId",
-  inventoryItem: "itemId",
-  purchaseOrder: "tranId",
-  invoice: "tranId",
-  vendorBill: "tranId",
+// Ordered by priority — first field that works wins
+const SEARCH_FIELDS: Record<string, string[]> = {
+  customer: ["companyName", "entityId"],
+  vendor: ["companyName", "entityId"],
+  inventoryItem: ["itemId"],
+  purchaseOrder: ["tranId"],
+  invoice: ["tranId"],
+  vendorBill: ["tranId"],
 };
-
-function defaultSearchField(recordType: string): string {
-  return DEFAULT_SEARCH_FIELDS[recordType] ?? "id";
-}
 
 const transactionInputSchema = z.object({
   entity: z.string().describe("Internal ID of the entity (customer or vendor)"),
@@ -404,22 +401,46 @@ export async function executeTool(
         const keywords =
           typeof args.keywords === "string" ? args.keywords.trim() : "";
 
-        let q: string | undefined;
-        if (keywords) {
-          const field = defaultSearchField(recordType);
-          const words = keywords.split(/\s+/).filter((w: string) => w.length > 0);
-          q = words
-            .map((w: string) => `${field} CONTAIN "${w}"`)
-            .join(" AND ");
+        if (!keywords) {
+          const path = `record/v1/${recordType}?limit=${limit}`;
+          const res = await netsuiteGet(path, creds);
+          const data = res.data as { items?: unknown[]; hasMore?: boolean };
+          return {
+            summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
+            items: data.items ?? [],
+            hasMore: data.hasMore ?? false,
+          };
         }
 
-        const path = `record/v1/${recordType}?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-        const res = await netsuiteGet(path, creds);
-        const data = res.data as { items?: unknown[]; hasMore?: boolean };
+        const fields = SEARCH_FIELDS[recordType] ?? ["id"];
+        const words = keywords
+          .split(/\s+/)
+          .filter((w: string) => w.length > 0);
+
+        // Try each search field until one succeeds
+        for (const field of fields) {
+          const q = words
+            .map((w: string) => `${field} CONTAIN "${w}"`)
+            .join(" AND ");
+          try {
+            const path = `record/v1/${recordType}?limit=${limit}&q=${encodeURIComponent(q)}`;
+            const res = await netsuiteGet(path, creds);
+            const data = res.data as { items?: unknown[]; hasMore?: boolean };
+            return {
+              summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
+              items: data.items ?? [],
+              hasMore: data.hasMore ?? false,
+            };
+          } catch {
+            // Field not supported for this record type, try next
+          }
+        }
+
+        // All fields failed — return empty results instead of error
         return {
-          summary: `Found ${data.items?.length ?? 0} ${recordLabel(recordType)} record(s)`,
-          items: data.items ?? [],
-          hasMore: data.hasMore ?? false,
+          summary: `Found 0 ${recordLabel(recordType)} record(s)`,
+          items: [],
+          hasMore: false,
         };
       }
       case "get_record": {
