@@ -434,37 +434,56 @@ export async function executeTool(
         const keywords =
           typeof args.keywords === "string" ? args.keywords.trim() : "";
 
-        const config = SUITEQL_CONFIG[recordType];
-        if (!config) {
-          return { error: `Unsupported record type: ${recordType}` };
-        }
+        // Try the requested type, then fallbacks (vendor → customer)
+        const typesToTry = recordType === "vendor"
+          ? [recordType, "customer"]
+          : [recordType];
 
-        const conditions: string[] = [];
-        const txType = TRANSACTION_TYPE_FILTER[recordType];
-        if (txType) conditions.push(`type = '${txType}'`);
+        for (const tryType of typesToTry) {
+          const config = SUITEQL_CONFIG[tryType];
+          if (!config) continue;
 
-        if (keywords) {
-          const words = keywords
-            .split(/\s+/)
-            .filter((w: string) => w.length > 0);
-          for (const w of words) {
-            conditions.push(
-              `${config.searchField} LIKE '%${w.replace(/'/g, "''")}%'`,
-            );
+          const conditions: string[] = [];
+          const txType = TRANSACTION_TYPE_FILTER[tryType];
+          if (txType) conditions.push(`type = '${txType}'`);
+
+          if (keywords) {
+            const words = keywords
+              .split(/\s+/)
+              .filter((w: string) => w.length > 0);
+            for (const w of words) {
+              conditions.push(
+                `${config.searchField} LIKE '%${w.replace(/'/g, "''")}%'`,
+              );
+            }
+          }
+
+          const where =
+            conditions.length > 0
+              ? ` WHERE ${conditions.join(" AND ")}`
+              : "";
+          const sql = `SELECT ${config.fields} FROM ${config.table}${where}`;
+
+          try {
+            const res = await netsuiteSuiteQL(sql, creds, limit);
+            const label =
+              tryType !== recordType
+                ? `${recordLabel(tryType)} (searched as fallback for ${recordLabel(recordType)})`
+                : recordLabel(recordType);
+            return {
+              summary: `Found ${res.items.length} ${label} record(s)`,
+              items: res.items,
+              hasMore: res.hasMore,
+            };
+          } catch {
+            // This record type/table doesn't exist, try next
           }
         }
 
-        const where =
-          conditions.length > 0
-            ? ` WHERE ${conditions.join(" AND ")}`
-            : "";
-        const sql = `SELECT ${config.fields} FROM ${config.table}${where}`;
-
-        const res = await netsuiteSuiteQL(sql, creds, limit);
         return {
-          summary: `Found ${res.items.length} ${recordLabel(recordType)} record(s)`,
-          items: res.items,
-          hasMore: res.hasMore,
+          summary: `Found 0 ${recordLabel(recordType)} record(s)`,
+          items: [],
+          hasMore: false,
         };
       }
       case "get_record": {
