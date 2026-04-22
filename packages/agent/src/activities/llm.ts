@@ -454,33 +454,52 @@ export async function executeTool(
           const txType = TRANSACTION_TYPE_FILTER[tryType];
           if (txType) conditions.push(`type = '${txType}'`);
 
-          if (keywords) {
-            const words = keywords
-              .split(/\s+/)
-              .filter((w: string) => w.length > 0);
-            for (const w of words) {
-              conditions.push(
-                `${config.searchField} LIKE '%${w.replace(/'/g, "''")}%'`,
-              );
+          if (!keywords) {
+            const where =
+              conditions.length > 0
+                ? ` WHERE ${conditions.join(" AND ")}`
+                : "";
+            const sql = `SELECT ${config.fields} FROM ${config.table}${where}`;
+            try {
+              const res = await netsuiteSuiteQL(sql, creds, limit);
+              return {
+                summary: `Found ${res.items.length} ${recordLabel(tryType)} record(s)`,
+                items: res.items,
+                hasMore: res.hasMore,
+              };
+            } catch {
+              continue;
             }
           }
 
-          const where =
-            conditions.length > 0
-              ? ` WHERE ${conditions.join(" AND ")}`
-              : "";
-          const sql = `SELECT ${config.fields} FROM ${config.table}${where}`;
+          // Progressive keyword search: try all words, then drop words
+          // one at a time from the end until we find results
+          const words = keywords
+            .split(/\s+/)
+            .filter((w: string) => w.length > 0);
 
-          try {
-            const res = await netsuiteSuiteQL(sql, creds, limit);
-            const label = recordLabel(tryType);
-            return {
-              summary: `Found ${res.items.length} ${label} record(s)`,
-              items: res.items,
-              hasMore: res.hasMore,
-            };
-          } catch {
-            // This record type/table doesn't exist, try next
+          for (let len = words.length; len >= 1; len--) {
+            const subset = words.slice(0, len);
+            const kwConditions = [
+              ...conditions,
+              ...subset.map(
+                (w: string) =>
+                  `${config.searchField} LIKE '%${w.replace(/'/g, "''")}%'`,
+              ),
+            ];
+            const sql = `SELECT ${config.fields} FROM ${config.table} WHERE ${kwConditions.join(" AND ")}`;
+            try {
+              const res = await netsuiteSuiteQL(sql, creds, limit);
+              if (res.items.length > 0 || len === 1) {
+                return {
+                  summary: `Found ${res.items.length} ${recordLabel(tryType)} record(s)`,
+                  items: res.items,
+                  hasMore: res.hasMore,
+                };
+              }
+            } catch {
+              continue;
+            }
           }
         }
 
