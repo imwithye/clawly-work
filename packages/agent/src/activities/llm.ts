@@ -466,10 +466,7 @@ export async function executeTool(
 
           try {
             const res = await netsuiteSuiteQL(sql, creds, limit);
-            const label =
-              tryType !== recordType
-                ? `${recordLabel(tryType)} (searched as fallback for ${recordLabel(recordType)})`
-                : recordLabel(recordType);
+            const label = recordLabel(tryType);
             return {
               summary: `Found ${res.items.length} ${label} record(s)`,
               items: res.items,
