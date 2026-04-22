@@ -450,6 +450,7 @@ function ToolStep({
 }) {
   const pending = parsed.result === undefined || parsed.result === null;
   const result = asRecord(parsed.result);
+  const args = asRecord(parsed.args);
   const hasError = typeof result.error === "string";
   const title = formatToolName(parsed.tool);
   const summary = typeof result.summary === "string" ? result.summary : "";
@@ -459,6 +460,10 @@ function ToolStep({
     : hasError
       ? `${title}: ${result.error}`
       : summary || title;
+
+  const detail = Object.entries(args)
+    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join("\n");
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted">
@@ -482,6 +487,18 @@ function ToolStep({
         />
       )}
       <span className="truncate">{label}</span>
+      {detail && (
+        <span className="group relative shrink-0 cursor-help">
+          <Icon
+            icon="solar:question-circle-linear"
+            width={14}
+            className="text-muted/50 hover:text-muted"
+          />
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden -translate-x-1/2 whitespace-pre rounded-[3px] border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground shadow-lg group-hover:block">
+            {detail}
+          </span>
+        </span>
+      )}
     </div>
   );
 }
