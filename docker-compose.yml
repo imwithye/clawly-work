@@ -3,7 +3,7 @@ services:
     image: postgres:17-alpine
     container_name: clawly-work-postgres
     ports:
-      - "5432:5432"
+      - "0.0.0.0:5432:5432"
     environment:
       POSTGRES_USER: clawly_work
       POSTGRES_PASSWORD: clawly_work
@@ -20,8 +20,8 @@ services:
     image: minio/minio:latest
     container_name: clawly-work-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "0.0.0.0:9000:9000"
+      - "0.0.0.0:9001:9001"
     environment:
       MINIO_ROOT_USER: clawly_work
       MINIO_ROOT_PASSWORD: clawly_work
@@ -55,7 +55,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "7233:7233"
+      - "0.0.0.0:7233:7233"
     environment:
       DB: postgres12
       DB_PORT: 5432
@@ -90,7 +90,7 @@ services:
       temporal:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CORS_ORIGINS: http://localhost:3000
@@ -106,7 +106,7 @@ services:
       temporal:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql://clawly_work:clawly_work@postgres:5432/clawly_work
