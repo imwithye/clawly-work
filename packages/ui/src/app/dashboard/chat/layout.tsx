@@ -216,15 +216,13 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
         <ChatProvider activeSession={activeSession}>{children}</ChatProvider>
       </section>
 
-      <Modal
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-      >
+      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
         <Modal.Header>Delete conversation</Modal.Header>
         <Modal.Body>
           <p className="text-sm text-foreground">
             Are you sure you want to delete{" "}
-            <strong>{deleteTarget?.title}</strong>? This action cannot be undone.
+            <strong>{deleteTarget?.title}</strong>? This action cannot be
+            undone.
           </p>
         </Modal.Body>
         <Modal.Footer>

@@ -88,9 +88,7 @@ export function useChat(sessionId: string | null) {
                 }
 
                 if (
-                  nextMessages.some(
-                    (message) => message.role === "assistant",
-                  )
+                  nextMessages.some((message) => message.role === "assistant")
                 ) {
                   waitingForAgentRef.current = false;
                 }

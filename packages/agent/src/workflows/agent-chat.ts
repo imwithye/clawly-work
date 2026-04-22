@@ -9,8 +9,8 @@ import {
 } from "@temporalio/workflow";
 import type * as dbActivities from "../activities/db";
 import type * as fileActivities from "../activities/files";
-import type { NetsuiteCredentials } from "../lib/netsuite";
 import type * as llmActivities from "../activities/llm";
+import type { NetsuiteCredentials } from "../lib/netsuite";
 
 const { callLLM, executeTool } = proxyActivities<typeof llmActivities>({
   startToCloseTimeout: "2 minutes",
@@ -176,10 +176,9 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
         await saveMessage(sessionId, "tool", pendingContent);
 
         let result: unknown;
-        const credentials =
-          (await loadConnectorCredentials(
-            sessionId,
-          )) as NetsuiteCredentials | null;
+        const credentials = (await loadConnectorCredentials(
+          sessionId,
+        )) as NetsuiteCredentials | null;
         if (!credentials) {
           result = {
             error: "No connector configured for this chat session.",

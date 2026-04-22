@@ -130,7 +130,10 @@ export default function ChatPage({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5" style={{ scrollbarGutter: "stable" }}>
+      <div
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-5"
+        style={{ scrollbarGutter: "stable" }}
+      >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
           {isLoading && <LoadingState />}
 

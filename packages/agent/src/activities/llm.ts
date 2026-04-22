@@ -287,9 +287,7 @@ export async function executeTool(
         };
       }
       case "search_invoices": {
-        const q = query
-          ? `tranId CONTAIN "${query}"`
-          : undefined;
+        const q = query ? `tranId CONTAIN "${query}"` : undefined;
         const path = `record/v1/invoice?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
         const res = await netsuiteGet(path, credentials);
         const data = res.data as { items?: unknown[]; hasMore?: boolean };
