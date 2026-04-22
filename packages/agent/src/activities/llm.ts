@@ -262,7 +262,7 @@ export async function executeTool(
 
   switch (toolName) {
     case "search_customers": {
-      const path = `/record/v1/customer?q=${q}&limit=${limit}&fields=id,companyName,email,phone,entityId`;
+      const path = `/record/v1/customer?q=${q}&limit=${limit}`;
       const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
@@ -272,7 +272,7 @@ export async function executeTool(
       };
     }
     case "search_items": {
-      const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}&fields=id,itemId,displayName,description`;
+      const path = `/record/v1/inventoryItem?q=${q}&limit=${limit}`;
       const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
@@ -282,7 +282,7 @@ export async function executeTool(
       };
     }
     case "search_invoices": {
-      const path = `/record/v1/invoice?q=${q}&limit=${limit}&fields=id,tranId,tranDate,total,status,entity`;
+      const path = `/record/v1/invoice?q=${q}&limit=${limit}`;
       const res = await netsuiteGet(path, credentials);
       const data = res.data as { items?: unknown[]; hasMore?: boolean };
       return {
