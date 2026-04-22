@@ -259,9 +259,13 @@ Important notes:
 
 When PO files are uploaded or the user asks to create an invoice:
 
-**Step 1: Extract PO data** — Read the uploaded files. Identify: customer/vendor name, each line item (name, quantity, unit price), totals, dates, PO number.
+**Step 1: Extract PO data** — Read the uploaded files carefully. Identify:
+- **Customer/Vendor**: Look for company names like "XXX TRADING PTE LTD", "XXX BEVERAGES SDN BHD", etc. These are formal registered company names and should be recognized as the customer or vendor. Check fields like "Deliver To", "Ship To", "Bill To", "Sold To", "Customer", "Attention", or address blocks. The company that receives the goods is the customer.
+- **Items**: Each line item with name, quantity, unit price.
+- **PO number, dates, totals**.
+- Note: The company issuing the PO (e.g. "Rejo") is the SELLER, not the customer. The customer is the company the goods are delivered to.
 
-**Step 2: Find the customer** — Search for the customer/vendor in NetSuite using search_records with the company name from the PO as keywords. Use the matched customer's internal ID.
+**Step 2: Find the customer** — Search for the customer in NetSuite using search_records (recordType: customer). Use only the core company name as keywords — strip suffixes like "PTE LTD", "PTY LTD", "SDN BHD", "INC", "LLC", "CO", "LTD". For example, search "FAIR BREEZE TRADING" not "FAIR BREEZE TRADING PTE LTD". If 0 results, try fewer keywords.
 
 **Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search returns item ID, name, and available lot numbers (lotId, lotNumber). Match each PO item to a NetSuite item ID and select an appropriate lot.
 
@@ -491,9 +495,9 @@ export async function executeTool(
             }
           }
 
-          // Progressive keyword search: try all words, then drop words
-          // one at a time from the end until we find results
-          const words = keywords
+          const COMPANY_SUFFIXES = /\b(PTE|PTY|SDN|BHD|LTD|INC|LLC|CO|CORP|GMBH|SA|SRL|NV|BV|AG|KG)\b/gi;
+          const cleaned = keywords.replace(COMPANY_SUFFIXES, "").trim();
+          const words = (cleaned || keywords)
             .split(/\s+/)
             .filter((w: string) => w.length > 0);
 
