@@ -87,7 +87,11 @@ export function useChat(sessionId: string | null) {
                   setMessages((prev) => mergeMessages(prev, nextMessages));
                 }
 
-                if (nextMessages.some((message) => message.role !== "user")) {
+                if (
+                  nextMessages.some(
+                    (message) => message.role === "assistant",
+                  )
+                ) {
                   waitingForAgentRef.current = false;
                 }
                 if (!waitingForAgentRef.current) {
