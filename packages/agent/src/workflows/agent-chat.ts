@@ -169,7 +169,7 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
       : null;
 
     let turn = 0;
-    while (turn++ < 10) {
+    while (turn++ < 30) {
       status = "thinking";
       let response: Awaited<ReturnType<typeof callLLM>>;
       try {
@@ -274,6 +274,23 @@ export async function agentChatWorkflow(sessionId: string): Promise<void> {
         });
       }
     }
+
+    // If loop exhausted without a final assistant message, send a fallback
+    if (turn > 30) {
+      const lastMsg = history[history.length - 1];
+      if (lastMsg?.role !== "assistant") {
+        const content =
+          "I ran into a processing limit while working on your request. Please send another message so I can continue.";
+        const saved = await saveMessage(sessionId, "assistant", content);
+        history.push({
+          id: saved.id,
+          role: "assistant",
+          content,
+          ts: saved.ts,
+        });
+      }
+    }
+
     status = "idle";
 
     if (workflowInfo().historyLength > 10_000) {
