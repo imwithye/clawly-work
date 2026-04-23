@@ -125,9 +125,9 @@ const SUITEQL_CONFIG: Record<
   },
   inventoryItem: {
     table:
-      "inventoryItem i LEFT JOIN inventoryBalance b ON b.item = i.id AND b.quantityOnHand > 0",
+      "inventoryItem i LEFT JOIN inventoryBalance b ON b.item = i.id AND b.quantityOnHand > 0 LEFT JOIN inventoryNumber n ON n.id = b.inventoryNumber",
     fields:
-      "i.id, i.itemId, i.salesDescription, b.inventoryNumber as lotId, b.quantityOnHand, b.location",
+      "i.id, i.itemId, i.salesDescription, b.inventoryNumber as lotId, n.inventoryNumber as lotNumber, b.quantityOnHand, b.location",
     searchField: "i.itemId",
   },
   purchaseOrder: {
@@ -269,19 +269,19 @@ When PO files are uploaded or the user asks to create an invoice:
 
 **Step 2: Find the customer** — Search for the customer in NetSuite using search_records (recordType: customer). Use only the core company name as keywords — strip suffixes like "PTE LTD", "PTY LTD", "SDN BHD", "INC", "LLC", "CO", "LTD". For example, search "FAIR BREEZE TRADING" not "FAIR BREEZE TRADING PTE LTD". If 0 results, try fewer keywords.
 
-**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search already returns item ID, name, available lotId, stock quantity, and location. Do NOT call get_record for items — search results have everything you need.
+**Step 3: Find each item** — For EACH line item from the PO, search NetSuite using search_records (recordType: inventoryItem) with the item name as keywords. The search already returns item ID, name, available lotId (internal ID), lotNumber (display number), stock quantity, and location. Do NOT call get_record for items — search results have everything you need.
 
 **Step 4: Show matching table** — Present a summary table (see format below) showing every PO line item with its NetSuite match and selected lot number. Ask user to confirm.
 
-**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and ONLY items that have a lotId (stock available). Each item MUST include lotNumber (the lotId from search results). Do NOT include items without stock/lotId — they will cause errors.
+**Step 5: Create invoice** — After user confirms, call create_invoice with the matched customer ID and ONLY items that have a lotId (stock available). Each item MUST include lotNumber set to the lotId (internal ID) from search results. Do NOT include items without stock/lotId — they will cause errors.
 
 ## Matching Summary Format
 
 After searching for items, present results in a markdown table like this:
 
-| PO Item | Qty | Price | NetSuite Match | Lot (ID) | Stock | Status |
-|---------|-----|-------|---------------|----------|-------|--------|
-| MACALLAN 12YO | 10 | $100 | MACALLAN 12YO SHERRY OAK (ID: 1744) | 5741 | 210 | ✅ Ready |
+| PO Item | Qty | Price | NetSuite Match | Lot No | Stock | Status |
+|---------|-----|-------|---------------|--------|-------|--------|
+| MACALLAN 12YO | 10 | $100 | MACALLAN 12YO SHERRY OAK (ID: 1744) | LOT-2024-001 | 210 | ✅ Ready |
 | MAKERS MARK | 3 | $45 | MAKERS MARK BOURBON (ID: 1828) | — | 0 | ❌ No stock |
 
 - ✅ **Ready**: Item matched with available stock and lot — will be used for invoice
@@ -412,12 +412,33 @@ async function createTransaction(
     };
   }
 
+  // Validate lot numbers belong to their respective items
+  const lotIds = validItems.map((li) => String(li.lotNumber));
+  const itemIds = validItems.map((li) => String(li.item));
+  const validateSql = `SELECT b.inventoryNumber AS lotId, b.item FROM inventoryBalance b WHERE b.inventoryNumber IN (${lotIds.join(",")}) AND b.item IN (${itemIds.join(",")}) AND b.quantityOnHand > 0`;
+  const validateRes = await netsuiteSuiteQL(validateSql, credentials, 1000);
+  const validPairs = new Set(
+    (validateRes.items as { lotid?: string; item?: string }[]).map(
+      (r) => `${r.lotid}:${r.item}`,
+    ),
+  );
+  const verifiedItems = validItems.filter((li) =>
+    validPairs.has(`${String(li.lotNumber)}:${String(li.item)}`),
+  );
+  const invalidCount = validItems.length - verifiedItems.length + skippedCount;
+
+  if (verifiedItems.length === 0) {
+    return {
+      error: `No items with valid lot/item pairings. ${invalidCount} item(s) skipped because their lot numbers are not associated with the given items or have no stock.`,
+    };
+  }
+
   const body: Record<string, unknown> = {
     entity: { id: entity },
     subsidiary: { id: "1" },
     location: { id: "2" },
     item: {
-      items: validItems.map((li) => {
+      items: verifiedItems.map((li) => {
         const line: Record<string, unknown> = {
           item: { id: String(li.item) },
           quantity: Number(li.quantity),
@@ -449,7 +470,7 @@ async function createTransaction(
   const location = headers?.location ?? "";
   const createdId = location.split("/").pop() ?? "";
   return {
-    summary: `${label} created${createdId ? ` (ID: ${createdId})` : ""}${skippedCount > 0 ? `. ${skippedCount} item(s) skipped (no stock).` : ""}`,
+    summary: `${label} created${createdId ? ` (ID: ${createdId})` : ""}${invalidCount > 0 ? `. ${invalidCount} item(s) skipped (no stock or invalid lot).` : ""}`,
     id: createdId,
     statusCode: res.statusCode,
     approvalStatus: "Pending Approval",
